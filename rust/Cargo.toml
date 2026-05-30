@@ -1,0 +1,17 @@
+[package]
+name = "enpose-api"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Public Rust API for the Enpose 6-DoF tracking system"
+repository = "https://github.com/enpose-tech/enpose-api"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[example]]
+name = "example"
+path = "example/example.rs"
+
+[dependencies]
+if-addrs = "0.13"
