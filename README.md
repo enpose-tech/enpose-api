@@ -68,23 +68,37 @@ binaries:
 
 ```bash
 cmake -S . -B build
-cmake --build build --target package   # -> build/enpose_api-<version>-<system>.{tar.gz,zip}
+cmake --build build --target dist   # -> build/enpose_api-<version>-<system>.{tar.gz,zip}
 ```
 
-Unpacked, that SDK contains the headers, the shared library, a CMake config, and
-the buildable sources for all four bindings (with a per-binding README, under
-`share/doc/enpose_api/examples/`). The C and C++ examples build against the
-prebuilt library with no Rust toolchain, the Python binding loads it at run time
-via cffi, and the full Rust crate is bundled too for consumers that build from
-source:
+Unpacked, that package has this layout:
+
+```
+enpose_api-<version>-<system>/
+├── LICENSE              the license, at the top level
+├── README.md           consumer-facing overview of the unpacked package
+├── include/            the C and C++ headers
+├── lib/                the shared library + CMake config (lib/cmake/enpose_api)
+├── docs/               generated API docs, one HTML site per binding (c/ cpp/ python/ rust/)
+└── examples/           buildable sources for all four bindings
+    ├── c/  cpp/        example + a CMakeLists.txt that builds via find_package
+    ├── rust/           the full crate, built from source with cargo
+    └── python/         the cffi binding, loaded at run time
+```
+
+The C and C++ examples build against the prebuilt library with no Rust
+toolchain, the Python binding loads it at run time via cffi, and the full Rust
+crate is bundled too for consumers that build from source:
 
 ```cmake
 find_package(enpose_api CONFIG REQUIRED)               # point at the SDK via CMAKE_PREFIX_PATH
 target_link_libraries(my_app PRIVATE enpose_api::enpose_api_cpp)
 ```
 
-`cmake --install build --prefix <dir>` installs the same layout directly. Each
-bundled binding builds (or runs) on its own — see the README beside it (or
+`cmake --install build --prefix <dir>` installs just the SDK (the `include/`
+and `lib/` directories — headers, the shared library, and the CMake config);
+the `docs/` and `examples/` are bundled into the package only. Each bundled
+binding builds (or runs) on its own — see the README beside it (or
 [`c/README.md`](c/README.md), [`cpp/README.md`](cpp/README.md),
 [`rust/README.md`](rust/README.md), [`python/README.md`](python/README.md) in
 this repo) for the one-line build.

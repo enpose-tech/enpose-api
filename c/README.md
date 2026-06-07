@@ -19,30 +19,21 @@ target_link_libraries(my_app PRIVATE enpose_api::enpose_api)
 
 ## Building the bundled example
 
-`example/example.c` is a complete discover-and-stream program. From the
-`example/` directory:
+`example.c` is a complete discover-and-stream program. From the SDK's
+`examples/c` directory:
 
 ```bash
-cmake -S . -B build -DCMAKE_PREFIX_PATH=<path-to-sdk>
+cmake -S . -B build
 cmake --build build
 ./build/enpose_example
 ```
 
-`CMAKE_PREFIX_PATH` points at the unpacked SDK (the directory containing
-`lib/cmake/enpose_api`). At runtime the program needs to find the shared
-library — e.g. `LD_LIBRARY_PATH=<sdk>/lib ./build/enpose_example`.
+The example's `CMakeLists.txt` finds the SDK's CMake config automatically (it
+sits two levels up under `lib/cmake/enpose_api`), so no `-DCMAKE_PREFIX_PATH`
+is needed. At runtime the program needs to find the shared library — e.g.
+`LD_LIBRARY_PATH=<sdk>/lib ./build/enpose_example`.
 
-## API overview
+## API reference
 
-| Function | Purpose |
-|----------|---------|
-| `enpose_discover` | Find devices on the local network. |
-| `enpose_device_info_array_free` | Release a discovered-device array. |
-| `enpose_pose_stream_connect` | Open a pose stream to a device by IP. |
-| `enpose_pose_stream_receive` | Get poses received since the last call (optionally blocking up to 3 s for at least one). |
-| `enpose_marker_pose_array_free` | Release a pose array. |
-| `enpose_pose_stream_free` | Disconnect and free a pose stream. |
-
-Arrays returned by the library are owned by the library; release each with its
-matching `*_array_free` function rather than `free()`. See the doc comments in
-`enpose_api.h` for details and the full workflow in `example/example.c`.
+The full API reference — every function, type, and field, generated from
+`enpose_api.h` — is published at <https://enpose.tech/docs/c/>.

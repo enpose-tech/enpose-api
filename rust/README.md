@@ -47,13 +47,10 @@ cargo test
 The release build also produces the C-ABI shared library
 (`target/release/libenpose_api.so`) used by the C and C++ bindings.
 
-## Features
+## API reference
 
-- `net` *(default)* — enables the networking API (`DeviceDiscovery`,
-  `PoseStream`) and the exported C ABI.
-- With `default-features = false`, only the wire types (`MarkerPose`) and the
-  pure protocol constants are built, for targets without a sockets stack (e.g.
-  `wasm32`).
+The full API reference is published at <https://enpose.tech/docs/rust/> (and is
+available offline via `cargo doc --open`).
 
 [`DeviceDiscovery`]: src/devicediscovery.rs
 [`PoseStream`]: src/posestream.rs

@@ -3,10 +3,11 @@
 # Configures in three contexts, picked automatically:
 #   * as part of the top-level enpose-api project (-DENPOSE_BUILD_EXAMPLES=ON)
 #   * standalone inside a source checkout      -> builds the in-tree library
-#   * standalone against an installed/prebuilt SDK -> uses find_package
+#   * standalone from the unpacked SDK         -> uses find_package, the SDK's
+#     CMake config two levels up (lib/cmake/enpose_api) is located automatically
 #
-# Standalone (the prefix path is only needed for a prebuilt SDK):
-#   cmake -S . -B build [-DCMAKE_PREFIX_PATH=<path-to-sdk>]
+# Standalone:
+#   cmake -S . -B build
 #   cmake --build build
 #   ./build/enpose_example
 
@@ -25,6 +26,12 @@ if(NOT TARGET enpose_api::enpose_api)
         set(ENPOSE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
         add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../.." enpose_api_root)
     else()
+        # In the unpacked SDK this example lives at examples/c, with the CMake
+        # package config two levels up under lib/cmake/enpose_api. Add the SDK
+        # root to the prefix path so it is found with no -DCMAKE_PREFIX_PATH.
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../lib/cmake/enpose_api")
+            list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+        endif()
         find_package(enpose_api CONFIG REQUIRED)
     endif()
 endif()

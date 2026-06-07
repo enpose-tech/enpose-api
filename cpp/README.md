@@ -39,15 +39,21 @@ target_link_libraries(my_app PRIVATE enpose_api::enpose_api_cpp)
 
 ## Building the bundled example
 
-`example/example.cpp` is a complete discover-and-stream program. From the
-`example/` directory:
+`example.cpp` is a complete discover-and-stream program. From the SDK's
+`examples/cpp` directory:
 
 ```bash
-cmake -S . -B build -DCMAKE_PREFIX_PATH=<path-to-sdk>
+cmake -S . -B build
 cmake --build build
 ./build/enpose_example_cpp
 ```
 
-`CMAKE_PREFIX_PATH` points at the unpacked SDK (the directory containing
-`lib/cmake/enpose_api`). At runtime the program needs to find the shared
-library — e.g. `LD_LIBRARY_PATH=<sdk>/lib ./build/enpose_example_cpp`.
+The example's `CMakeLists.txt` finds the SDK's CMake config automatically (it
+sits two levels up under `lib/cmake/enpose_api`), so no `-DCMAKE_PREFIX_PATH`
+is needed. At runtime the program needs to find the shared library — e.g.
+`LD_LIBRARY_PATH=<sdk>/lib ./build/enpose_example_cpp`.
+
+## API reference
+
+The full API reference — every class, method, and field, generated from
+`enpose_api.hpp` — is published at <https://enpose.tech/docs/cpp/>.

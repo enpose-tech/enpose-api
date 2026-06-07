@@ -57,14 +57,7 @@ LD_LIBRARY_PATH=<path-to-sdk>/lib python3 example/example.py
 The example puts this directory on `sys.path`, so it imports the `enpose_api`
 package next to it without installation.
 
-## API overview
+## API reference
 
-| Symbol | Purpose |
-|--------|---------|
-| `discover()` | Find devices on the local network → `list[DeviceInfo]`. |
-| `DeviceInfo` | A discovered device (`ip`, `serial`, `compatible`). |
-| `PoseStream(target, create_thread=True)` | Open a pose stream to a `DeviceInfo` or IPv4 string. |
-| `PoseStream.receive(block=False)` | Poses since the last call → `list[MarkerPose]`; `block=True` waits up to 3 s for at least one. |
-| `PoseStream.close()` | Disconnect (also via `with` / garbage collection). |
-| `MarkerPose` | One pose (`timestamp`, `marker_id`, `x`/`y`/`z`, `rotation`, `position_rmse`, `rotation_rmse`, `sensors`). |
-| `Error` | Raised on any failed call. |
+The full API reference — every class, function, and field — is published at
+<https://enpose.tech/docs/python/>.

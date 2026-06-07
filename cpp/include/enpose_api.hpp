@@ -1,15 +1,18 @@
-// Header-only C++ wrapper around the Enpose C API.
-//
-// This is a thin, RAII-style convenience layer over the C interface declared
-// in `enpose_api.h` (from the C interface's `include/` directory, which must
-// be on the include path). It adds:
-//   * std::vector results instead of caller-freed C arrays,
-//   * std::string addresses,
-//   * a PoseStream class that frees itself on destruction,
-//   * exceptions (enpose::Error) instead of status codes / NULL.
-//
-// Everything is inline; just include this header and link the enpose_api
-// shared library.
+/**
+ * @file enpose_api.hpp
+ * @brief Header-only C++ wrapper around the Enpose C API.
+ *
+ * This is a thin, RAII-style convenience layer over the C interface declared
+ * in `enpose_api.h` (from the C interface's `include/` directory, which must
+ * be on the include path). It adds:
+ *   * std::vector results instead of caller-freed C arrays,
+ *   * std::string addresses,
+ *   * a PoseStream class that frees itself on destruction,
+ *   * exceptions (enpose::Error) instead of status codes / NULL.
+ *
+ * Everything is inline; just include this header and link the enpose_api
+ * shared library.
+ */
 
 #pragma once
 

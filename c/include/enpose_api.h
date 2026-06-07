@@ -1,5 +1,6 @@
-/*
- * Enpose API — C interface for the 6-DoF tracking system.
+/**
+ * @file enpose_api.h
+ * @brief Enpose API — C interface for the 6-DoF tracking system.
  *
  * This header is hand-maintained and must be kept in sync with the Rust FFI
  * layer in `rust/src/ffi.rs`. Link against the `enpose_api` shared library
@@ -21,47 +22,52 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+/**
+ * @defgroup enpose_c_api Enpose C API
+ * @brief Functions, types, and status codes of the Enpose C interface.
+ * @{
+ */
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Result code returned by the fallible functions. */
+/** Result code returned by the fallible functions. */
 typedef enum EnposeStatus {
-    ENPOSE_OK = 0,           /* The call succeeded. */
-    ENPOSE_ERR_INVALID_ARG = -1, /* A required argument was null/invalid. */
-    ENPOSE_ERR_IO = -2,      /* An I/O error occurred (e.g. network failure). */
-    ENPOSE_ERR_PANIC = -3    /* Internal error; the call was aborted cleanly. */
+    ENPOSE_OK = 0,           /**< The call succeeded. */
+    ENPOSE_ERR_INVALID_ARG = -1, /**< A required argument was null/invalid. */
+    ENPOSE_ERR_IO = -2,      /**< An I/O error occurred (e.g. network failure). */
+    ENPOSE_ERR_PANIC = -3    /**< Internal error; the call was aborted cleanly. */
 } EnposeStatus;
 
-/* C view of one discovered device. */
+/** C view of one discovered device. */
 typedef struct EnposeDeviceInfo {
-    char ip[46];        /* Null-terminated IPv4 address string. */
-    uint32_t serial;    /* Factory serial number. */
-    bool compatible;    /* True if the device's protocol version matches. */
+    char ip[46];        /**< Null-terminated IPv4 address string. */
+    uint32_t serial;    /**< Factory serial number. */
+    bool compatible;    /**< True if the device's protocol version matches. */
 } EnposeDeviceInfo;
 
-/*
+/**
  * Pose of one tracked marker in world coordinates. Mirrors the Rust
  * `MarkerPose` type field-for-field (the Rust type is #[repr(C)]).
  *
  * Units: x/y/z and position_rmse are in meters; rotation_rmse is in radians.
  */
 typedef struct EnposeMarkerPose {
-    uint64_t timestamp;     /* Microseconds since the device started. */
-    uint16_t marker_id;     /* Marker identifier. */
-    double x;               /* World position in meters (first model emitter). */
+    uint64_t timestamp;     /**< Microseconds since the device started. */
+    uint16_t marker_id;     /**< Marker identifier. */
+    double x;               /**< World position in meters (first model emitter). */
     double y;
     double z;
-    double rotation[9];     /* Row-major 3x3 rotation, model frame to world. */
-    double position_rmse;   /* RMS position error, in meters (units of x/y/z). */
-    double rotation_rmse;   /* RMS rotation error (radians, axis-angle magnitude). */
-    uint8_t sensors;        /* Number of sensors that contributed. */
+    double rotation[9];     /**< Row-major 3x3 rotation, model frame to world. */
+    double position_rmse;   /**< RMS position error, in meters (units of x/y/z). */
+    double rotation_rmse;   /**< RMS rotation error (radians, axis-angle magnitude). */
+    uint8_t sensors;        /**< Number of sensors that contributed. */
 } EnposeMarkerPose;
 
-/* Opaque handle to a live pose stream. */
+/** Opaque handle to a live pose stream. */
 typedef struct EnposePoseStream EnposePoseStream;
 
-/*
+/**
  * Discover Enpose devices on the local network.
  *
  * On ENPOSE_OK, *out_devices points to a library-allocated array of
@@ -71,10 +77,10 @@ typedef struct EnposePoseStream EnposePoseStream;
  */
 EnposeStatus enpose_discover(EnposeDeviceInfo **out_devices, size_t *out_count);
 
-/* Release an array returned by enpose_discover(). */
+/** Release an array returned by enpose_discover(). */
 void enpose_device_info_array_free(EnposeDeviceInfo *devices, size_t count);
 
-/*
+/**
  * Connect a pose stream to the device at `ip` (an IPv4 string).
  *
  * The Enpose API is IPv4-only; a non-IPv4 address fails. When create_thread is
@@ -85,7 +91,7 @@ void enpose_device_info_array_free(EnposeDeviceInfo *devices, size_t count);
  */
 EnposePoseStream *enpose_pose_stream_connect(const char *ip, bool create_thread);
 
-/*
+/**
  * Return the poses received from the stream.
  *
  * When `block` is true, waits for at least one pose update before returning,
@@ -100,12 +106,13 @@ EnposeStatus enpose_pose_stream_receive(EnposePoseStream *stream,
                                         EnposeMarkerPose **out_poses,
                                         size_t *out_count);
 
-/* Release an array returned by enpose_pose_stream_receive(). */
+/** Release an array returned by enpose_pose_stream_receive(). */
 void enpose_marker_pose_array_free(EnposeMarkerPose *poses, size_t count);
 
-/* Disconnect and free a pose stream handle. */
+/** Disconnect and free a pose stream handle. */
 void enpose_pose_stream_free(EnposePoseStream *stream);
 
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
+/** @} */ /* enpose_c_api */

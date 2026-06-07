@@ -84,11 +84,10 @@ fn ignores_non_pose_packets() {
 fn from_ip_rejects_ipv6() {
     // The Enpose API is IPv4-only; an IPv6 target is rejected up front with a
     // typed Unsupported error rather than an opaque connect failure.
-    let err = PoseStream::from_ip(
-        std::net::IpAddr::V6(std::net::Ipv6Addr::LOCALHOST),
-        false,
-    )
-    .unwrap_err();
+    let result = PoseStream::from_ip(std::net::IpAddr::V6(std::net::Ipv6Addr::LOCALHOST), false);
+    let Err(err) = result else {
+        panic!("expected an error for an IPv6 target");
+    };
     assert_eq!(err.kind(), std::io::ErrorKind::Unsupported);
 }
 
