@@ -1,0 +1,53 @@
+# Doxygen configuration template for the Enpose API C / C++ bindings.
+# Configured by the top-level CMake `docs` target (configure_file substitutes
+# the @VARS@) and run once per language, emitting HTML into docs/<language>/.
+
+DOXYFILE_ENCODING      = UTF-8
+PROJECT_NAME           = "@DOXY_PROJECT_NAME@"
+PROJECT_BRIEF          = "Enpose 6-DoF tracking API"
+OUTPUT_DIRECTORY       = @DOXY_OUTPUT@
+# Emit the HTML straight into OUTPUT_DIRECTORY (docs/<language>) with no extra
+# html/ subdirectory.
+HTML_OUTPUT            = .
+CREATE_SUBDIRS         = NO
+
+INPUT                  = @DOXY_INPUT@
+FILE_PATTERNS          = @DOXY_FILE_PATTERNS@
+RECURSIVE              = NO
+
+# Label entities by name only — never by their absolute on-disk path — and drop
+# the single-header "Files" tab (and its directory-reference pages) entirely.
+# The C functions are surfaced via a @defgroup top-level "Topics" entry instead;
+# C++ methods are reachable under "Classes".
+FULL_PATH_NAMES        = NO
+SHOW_FILES             = NO
+
+# Render the binding's README as the landing page, so index.html opens on the
+# overview instead of an empty "Main Page".
+USE_MDFILE_AS_MAINPAGE = @DOXY_MAINPAGE@
+
+# The C header documents declarations with C-style comments; OPTIMIZE_OUTPUT_FOR_C
+# tunes the output for C. It is NO for the C++ wrapper.
+OPTIMIZE_OUTPUT_FOR_C  = @DOXY_OPTIMIZE_C@
+
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+JAVADOC_AUTOBRIEF      = YES
+MARKDOWN_SUPPORT       = YES
+AUTOLINK_SUPPORT       = YES
+TYPEDEF_HIDES_STRUCT   = YES
+SORT_MEMBER_DOCS       = NO
+
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_NO_PARAMDOC       = NO
+
+GENERATE_LATEX         = NO
+GENERATE_HTML          = YES
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+HTML_COLORSTYLE        = DARK
+# Custom palette layered on top of the dark base (see enpose-doxygen.css).
+HTML_EXTRA_STYLESHEET  = @DOXY_EXTRA_CSS@
+HTML_DYNAMIC_SECTIONS  = YES

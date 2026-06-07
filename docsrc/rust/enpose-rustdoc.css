@@ -1,0 +1,68 @@
+/* Enpose rustdoc theme — appended to rustdoc's theme.css via --extend-css.
+ *
+ * Overrides rustdoc's per-theme CSS variables for every built-in theme so the
+ * docs always render in the Enpose / webgui dark palette whichever theme the
+ * reader selects. Palette mirrors webgui/src/my_ui.rs — keep in sync:
+ *   PRIMARY_COLOR        #00ccff   PRIMARY_COLOR_DARK   #007f9f
+ *   SECONDARY_COLOR      #f19640   side-panel / elevated #00141a
+ */
+:root,
+:root[data-theme="light"],
+:root[data-theme="dark"],
+:root[data-theme="ayu"] {
+    --main-background-color: #1b1b1b;
+    --main-color: #ffffff;
+
+    /* rustdoc's dark theme defaults every one of these link colours to gold
+     * (#d2991d); retint the otherwise-yellow ones to the primary accent. The
+     * type/trait/function/macro link colours stay distinct for readability. */
+    --link-color: #00ccff;
+    --mod-link-color: #00ccff;
+    --keyword-link-color: #00ccff;
+    --attribute-link-color: #00ccff;
+    --assoc-item-link-color: #00ccff;
+
+    --sidebar-background-color: #00141a;
+    --sidebar-background-color-hover: #11343d;
+    --sidebar-current-link-background-color: #007f9f;
+    --sidebar-border-color: #11343d;
+    /* Left navigation menu links (dark theme defaults to yellow #fdbf35). */
+    --sidebar-link-color: #00ccff;
+
+    --code-block-background-color: #00141a;
+    --codeblock-link-background: #11343d;
+    --headings-border-bottom-color: #11343d;
+
+    --search-color: #ffffff;
+    --search-result-link-focus-background-color: #11343d;
+    --search-result-border-color: #11343d;
+    --search-tab-button-selected-background: #00141a;
+    --search-tab-button-not-selected-background: #11181b;
+    --search-input-focused-border-color: #00ccff;
+
+    --kbd-background: #00141a;
+    --kbd-color: #ffffff;
+    --copy-path-button-color: #a9b3b6;
+
+    /* Syntax highlighting: primary for keywords, secondary for strings/macros. */
+    --code-highlight-kw-color: #00ccff;
+    --code-highlight-kw-2-color: #00ccff;
+    --code-highlight-self-color: #00ccff;
+    --code-highlight-macro-color: #f19640;
+    --code-highlight-string-color: #f19640;
+    --code-highlight-literal-color: #f19640;
+    --code-highlight-number-color: #f19640;
+    --code-highlight-comment-color: #a9b3b6;
+    --code-highlight-doc-comment-color: #a9b3b6;
+}
+
+/* Hover state uses the secondary (orange) accent, matching the webgui. */
+a:hover {
+    color: #f19640 !important;
+}
+
+/* Sidebar links get a blue (primary-dark) background row on hover, so use white
+ * text there for contrast instead of the orange accent. */
+.sidebar a:hover:not(.logo-container) {
+    color: #ffffff !important;
+}

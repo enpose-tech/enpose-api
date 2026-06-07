@@ -1,0 +1,55 @@
+/* Enpose Doxygen theme — HTML_EXTRA_STYLESHEET layered on Doxygen's built-in
+ * dark base (HTML_COLORSTYLE = DARK). Retints the accents to the Enpose /
+ * webgui palette. Palette mirrors webgui/src/my_ui.rs — keep in sync:
+ *   PRIMARY_COLOR        #00ccff   PRIMARY_COLOR_DARK   #007f9f
+ *   SECONDARY_COLOR      #f19640   side-panel / elevated #00141a
+ *
+ * Doxygen (>= 1.9.x) exposes its theme as CSS variables on `html`; override
+ * them here so the whole page picks up the palette.
+ */
+html {
+    --primary-color: #00ccff;
+    --primary-dark-color: #007f9f;
+    --primary-light-color: #33d6ff;
+    --primary-lighter-color: #1a4651;
+    --primary-lightest-color: #00141a;
+
+    --page-background-color: #1b1b1b;
+    --page-foreground-color: #ffffff;
+    --page-secondary-foreground-color: #a9b3b6;
+    --separator-color: #11343d;
+
+    --nav-background-color: #00141a;
+    --nav-foreground-color: #ffffff;
+    --side-nav-background: #00141a;
+    --header-background-color: #00141a;
+    --header-foreground-color: #ffffff;
+
+    --code-background: #00141a;
+    --fragment-background: #00141a;
+    --fragment-foreground: #ffffff;
+    --fragment-keyword: #00ccff;
+    --fragment-keywordtype: #00ccff;
+    --fragment-string: #f19640;
+    --fragment-comment: #a9b3b6;
+
+    --warning-color: #f19640;
+    --warning-color-dark: #f19640;
+}
+
+/* Links: primary by default, secondary (orange) on hover, as in the webgui. */
+a, a:visited, a.el {
+    color: var(--primary-color);
+}
+a:hover {
+    color: var(--warning-color);
+}
+
+/* Member declaration tables sit on the elevated (side-panel) background. */
+.memberdecls td.memItemLeft,
+.memberdecls td.memItemRight,
+.memItemLeft, .memItemRight,
+.memproto {
+    background-color: var(--code-background);
+    border-color: var(--separator-color);
+}
