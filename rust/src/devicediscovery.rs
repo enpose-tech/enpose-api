@@ -16,15 +16,21 @@ use crate::protocol::{
 /// spend before returning, regardless of how many replies have arrived.
 const TOTAL_BUDGET: Duration = Duration::from_millis(500);
 
-/// Time to wait for the very first reply. Sized to cover broadcast
-/// propagation plus the responding device's role-negotiation tick
-/// latency.
-const FIRST_WAIT: Duration = Duration::from_millis(200);
+/// Number of discovery-request bursts sent across the budget. Resending the
+/// request (rather than broadcasting once) keeps a dropped request or reply on
+/// a lossy segment from turning into a false "no devices found".
+const DISCOVERY_BURSTS: u32 = 3;
 
-/// Time to wait between subsequent replies. Tighter than [`FIRST_WAIT`]
-/// because once at least one device has replied, any additional replies
-/// are already in flight and arrive close together.
-const NEXT_WAIT: Duration = Duration::from_millis(50);
+/// Spacing between discovery-request bursts. Three bursts at this spacing fit
+/// inside [`TOTAL_BUDGET`] with room for the last one's replies to arrive.
+const BURST_INTERVAL: Duration = Duration::from_millis(150);
+
+/// Once at least one reply has arrived, return after this long passes with no
+/// further reply — additional replies from a cluster are already in flight and
+/// arrive close together, so this lets discovery finish promptly instead of
+/// always waiting out the full budget. With no reply yet, discovery keeps
+/// listening (and retransmitting) for the full [`TOTAL_BUDGET`].
+const QUIET_WINDOW: Duration = Duration::from_millis(50);
 
 /// Information about one tracker device discovered on the local network.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,8 +52,8 @@ pub struct DeviceInfo {
 
 /// Discovers Enpose tracker devices on the local network.
 ///
-/// On every call to [`Self::discover`] the API sends a discovery
-/// request to every directed-broadcast address of every up,
+/// On every call to [`Self::discover`] the API sends discovery
+/// requests to every directed-broadcast address of every up,
 /// non-loopback IPv4 interface on the host (e.g. `192.168.10.255` on
 /// a host with `enp1s0 192.168.10.10/24`), plus the limited-broadcast
 /// address `255.255.255.255`. This reaches the cluster network on
@@ -92,17 +98,19 @@ impl DeviceDiscovery {
         }
     }
 
-    /// Send a single discovery request and collect replies.
+    /// Broadcast discovery requests and collect replies.
     ///
-    /// Broadcasts one discovery request to [`BROADCAST_PORT`] and
-    /// listens on the same socket for [`PKT_TYPE_PEER_INFO`] replies.
-    /// Only the elected primary of a cluster replies, so a cluster
-    /// contributes one entry; multiple clusters on the same L2 segment
-    /// each contribute one entry.
+    /// Sends the discovery request to [`BROADCAST_PORT`] up to three times,
+    /// 150 ms apart, and listens on the same socket for
+    /// [`PKT_TYPE_PEER_INFO`] replies. Resending guards against a dropped
+    /// request or reply on a lossy segment. Only the elected primary of a
+    /// cluster replies, so a cluster contributes one entry; multiple clusters
+    /// on the same L2 segment each contribute one. Replies are de-duplicated
+    /// by serial.
     ///
-    /// Timing: waits up to 200 ms for the first reply, then up to 50 ms
-    /// for each subsequent reply, with a hard 500 ms total cap.
-    /// Returns as soon as a wait window elapses with no reply.
+    /// Timing: returns 50 ms after the last reply (whichever cluster replies
+    /// last), or — if nothing replies — only at the hard 500 ms cap, having
+    /// retransmitted the request in the meantime.
     ///
     /// # Errors
     ///
@@ -114,25 +122,50 @@ impl DeviceDiscovery {
         socket.set_broadcast(true)?;
 
         let request = encode_discovery_request();
-        for target in self.discovery_targets() {
-            // Per-interface send_to may fail (e.g. interface went down
-            // between enumeration and send); other targets still get a
-            // chance, so swallow the error and keep going.
-            let _ = socket.send_to(&request, target);
-        }
+        let targets = self.discovery_targets();
 
         let mut devices: Vec<DeviceInfo> = Vec::new();
-        let mut wait = FIRST_WAIT;
-        let start = Instant::now();
         let mut buf = [0u8; PACKET_SIZE];
+        let start = Instant::now();
+        let mut bursts_sent: u32 = 0;
+        let mut last_reply: Option<Instant> = None;
 
         loop {
-            let elapsed = start.elapsed();
-            if elapsed >= TOTAL_BUDGET {
+            if start.elapsed() >= TOTAL_BUDGET {
                 break;
             }
-            let remaining = TOTAL_BUDGET - elapsed;
-            socket.set_read_timeout(Some(wait.min(remaining)))?;
+            // Stop early once replies have stopped arriving — but only after
+            // hearing at least one. With no reply yet, keep waiting (and
+            // retransmitting) for the full budget so a dropped request or
+            // reply does not become a false "no devices found".
+            if last_reply.is_some_and(|t| t.elapsed() >= QUIET_WINDOW) {
+                break;
+            }
+
+            // Send the next request burst when it falls due.
+            let next_burst_at = BURST_INTERVAL * bursts_sent;
+            if bursts_sent < DISCOVERY_BURSTS && start.elapsed() >= next_burst_at {
+                for target in &targets {
+                    // A per-target send_to may fail (e.g. an interface went
+                    // down between enumeration and send); other targets still
+                    // get a chance, so swallow the error and keep going.
+                    let _ = socket.send_to(&request, target);
+                }
+                bursts_sent += 1;
+            }
+
+            // Wake at the soonest of: the budget cap, the next burst, or the
+            // quiet-window expiry once a reply has arrived. `max(1ms)` keeps
+            // the timeout non-zero (a zero read timeout means "block forever").
+            let now = start.elapsed();
+            let mut wait = TOTAL_BUDGET.saturating_sub(now);
+            if bursts_sent < DISCOVERY_BURSTS {
+                wait = wait.min((BURST_INTERVAL * bursts_sent).saturating_sub(now));
+            }
+            if let Some(t) = last_reply {
+                wait = wait.min(QUIET_WINDOW.saturating_sub(t.elapsed()));
+            }
+            socket.set_read_timeout(Some(wait.max(Duration::from_millis(1))))?;
 
             match socket.recv_from(&mut buf) {
                 Ok((n, src)) => {
@@ -142,8 +175,8 @@ impl DeviceDiscovery {
                     if parsed.pkt_type != PKT_TYPE_PEER_INFO {
                         continue;
                     }
-                    // Bridged networks occasionally echo our own broadcast
-                    // back; drop any duplicate-by-serial reply so the
+                    // Bridged networks — and our own retransmits — can echo a
+                    // reply more than once; drop duplicates by serial so the
                     // returned list reflects unique devices.
                     if devices.iter().any(|d| d.serial == parsed.serial) {
                         continue;
@@ -153,15 +186,14 @@ impl DeviceDiscovery {
                         serial: parsed.serial,
                         compatible: parsed.version == PROTOCOL_VERSION,
                     });
-                    wait = NEXT_WAIT;
+                    last_reply = Some(Instant::now());
                 }
                 Err(e)
                     if e.kind() == io::ErrorKind::WouldBlock
                         || e.kind() == io::ErrorKind::TimedOut =>
                 {
-                    // No reply within the current wait window — we are done.
-                    // WouldBlock on Linux, TimedOut on Windows.
-                    break;
+                    // Window elapsed with no packet; loop to retransmit or
+                    // finish. WouldBlock on Linux, TimedOut on Windows.
                 }
                 Err(e) => return Err(e),
             }

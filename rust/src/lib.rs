@@ -1,25 +1,43 @@
 //! Public Rust API for the Enpose 6-DoF tracking system.
 //!
 //! This API lets external applications discover Enpose tracker devices on
-//! the local network and (in future versions) connect to them to receive
-//! tracking data. Discovery is built around [`DeviceDiscovery`].
+//! the local network ([`DeviceDiscovery`]) and connect to one to receive a
+//! live stream of marker poses ([`PoseStream`]).
+//!
+//! The networking parts are behind the default `net` feature. Building with
+//! `default-features = false` keeps only the wire types ([`MarkerPose`]) and
+//! the pure [`protocol`] constants, which is what targets without a sockets
+//! stack (e.g. `wasm32`) should depend on.
 //!
 //! # Example
 //!
 //! ```no_run
-//! use enpose_api::DeviceDiscovery;
+//! use enpose_api::{DeviceDiscovery, PoseStream};
 //!
-//! let devices = DeviceDiscovery::new().discover()?;
-//! for device in devices {
-//!     println!(
-//!         "{} (serial {}) compatible={}",
-//!         device.ip, device.serial, device.compatible,
-//!     );
+//! // Find a device, then stream poses from it.
+//! if let Some(device) = DeviceDiscovery::new().discover()?.into_iter().next() {
+//!     let mut stream = PoseStream::from_device(&device, false)?;
+//!     // `true` waits for a pose update (up to a 3-second timeout).
+//!     for pose in stream.receive_pose_updates(true)? {
+//!         println!("marker {} @ ({}, {}, {})", pose.marker_id, pose.x, pose.y, pose.z);
+//!     }
 //! }
 //! # Ok::<(), std::io::Error>(())
 //! ```
 
-pub mod devicediscovery;
+pub mod marker_pose;
 pub mod protocol;
 
+#[cfg(feature = "net")]
+pub mod devicediscovery;
+#[cfg(feature = "net")]
+pub mod ffi;
+#[cfg(feature = "net")]
+pub mod posestream;
+
+pub use marker_pose::MarkerPose;
+
+#[cfg(feature = "net")]
 pub use devicediscovery::{DeviceDiscovery, DeviceInfo};
+#[cfg(feature = "net")]
+pub use posestream::PoseStream;

@@ -51,6 +51,39 @@ pub const PKT_TYPE_PEER_INFO: u8 = 0;
 /// [`PKT_TYPE_PEER_INFO`] packet sent unicast to the requester.
 pub const PKT_TYPE_DISCOVERY_REQUEST: u8 = 1;
 
+/// UDP port the pose-streaming protocol uses. Clients send subscribe /
+/// keep-alive packets to this port on the device's primary, and the
+/// device unicasts [`PKT_TYPE_POSE_DATA`] packets back to each subscribed
+/// client. Separate from [`BROADCAST_PORT`] so discovery and streaming
+/// traffic never share a socket.
+pub const POSE_PORT: u16 = 50885;
+
+/// Packet type: a client subscribes to the pose stream. The same packet
+/// doubles as the keep-alive — a client resends it at 1 Hz, and the
+/// device drops a client it has not heard from within
+/// [`POSE_KEEPALIVE_TIMEOUT_SECS`]. Sent client → device on
+/// [`POSE_PORT`].
+pub const PKT_TYPE_POSE_SUBSCRIBE: u8 = 2;
+
+/// Packet type: a client unsubscribes from the pose stream. Lets the
+/// device drop the client immediately instead of waiting for the
+/// keep-alive timeout. Sent client → device on [`POSE_PORT`].
+pub const PKT_TYPE_POSE_UNSUBSCRIBE: u8 = 3;
+
+/// Packet type: a pose-data datagram. The fixed [`PACKET_SIZE`] header is
+/// followed by a MessagePack-encoded `Vec<MarkerPose>` starting at offset
+/// [`PACKET_SIZE`]. One datagram carries all markers localized from a
+/// single camera frame. Sent device → client on [`POSE_PORT`].
+pub const PKT_TYPE_POSE_DATA: u8 = 4;
+
+/// How long the device keeps a pose-stream client without hearing a
+/// subscribe/keep-alive packet from it before dropping the connection.
+pub const POSE_KEEPALIVE_TIMEOUT_SECS: u64 = 5;
+
+/// Interval at which a pose-stream client should resend its
+/// subscribe/keep-alive packet to stay connected.
+pub const POSE_KEEPALIVE_INTERVAL_SECS: u64 = 1;
+
 /// Decoded contents of a packet that passed the magic-bytes check.
 ///
 /// The `version` field is intentionally not validated by
@@ -77,6 +110,26 @@ pub fn encode_peer_info(serial: u32, has_extrinsics: bool) -> [u8; PACKET_SIZE] 
 /// into the response.
 pub fn encode_discovery_request() -> [u8; PACKET_SIZE] {
     encode(0, false, PKT_TYPE_DISCOVERY_REQUEST)
+}
+
+/// Build a pose-stream subscribe / keep-alive packet. Carries
+/// `serial = 0` because the client is anonymous; the device identifies
+/// the client by its source address.
+pub fn encode_pose_subscribe() -> [u8; PACKET_SIZE] {
+    encode(0, false, PKT_TYPE_POSE_SUBSCRIBE)
+}
+
+/// Build a pose-stream unsubscribe packet.
+pub fn encode_pose_unsubscribe() -> [u8; PACKET_SIZE] {
+    encode(0, false, PKT_TYPE_POSE_UNSUBSCRIBE)
+}
+
+/// Build the fixed header of a [`PKT_TYPE_POSE_DATA`] packet. The caller
+/// appends the MessagePack-encoded pose payload after this header; the
+/// receiver decodes the payload from offset [`PACKET_SIZE`]. `serial` is
+/// the sending device's factory serial.
+pub fn encode_pose_data_header(serial: u32) -> [u8; PACKET_SIZE] {
+    encode(serial, false, PKT_TYPE_POSE_DATA)
 }
 
 fn encode(serial: u32, has_extrinsics: bool, pkt_type: u8) -> [u8; PACKET_SIZE] {

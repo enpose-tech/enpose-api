@@ -1,0 +1,27 @@
+@PACKAGE_INIT@
+
+# Package config for an installed / prebuilt Enpose API SDK.
+#
+# Defines the same targets as the in-tree build:
+#   enpose_api::enpose_api      -- C interface (shared library + C header)
+#   enpose_api::enpose_api_cpp  -- header-only C++ wrapper
+
+set_and_check(_enpose_includedir "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@")
+set_and_check(_enpose_libdir "@PACKAGE_CMAKE_INSTALL_LIBDIR@")
+
+if(NOT TARGET enpose_api::enpose_api)
+    add_library(enpose_api::enpose_api SHARED IMPORTED)
+    set_target_properties(enpose_api::enpose_api PROPERTIES
+        IMPORTED_LOCATION "${_enpose_libdir}/@ENPOSE_LIB_NAME@"
+        INTERFACE_INCLUDE_DIRECTORIES "${_enpose_includedir}")
+endif()
+
+if(NOT TARGET enpose_api::enpose_api_cpp)
+    add_library(enpose_api::enpose_api_cpp INTERFACE IMPORTED)
+    set_target_properties(enpose_api::enpose_api_cpp PROPERTIES
+        INTERFACE_LINK_LIBRARIES "enpose_api::enpose_api"
+        INTERFACE_INCLUDE_DIRECTORIES "${_enpose_includedir}"
+        INTERFACE_COMPILE_FEATURES "cxx_std_17")
+endif()
+
+check_required_components(enpose_api)

@@ -39,7 +39,8 @@ fn spawn_fake_primary(replies: Vec<[u8; PACKET_SIZE]>) -> (SocketAddr, thread::J
 fn no_reply_returns_empty_within_budget() {
     // Bind a port and keep it alive (so the kernel doesn't send ICMP
     // unreachable back, which would surface as an io::Error on the next
-    // recv), but never reply. Discover should time out and return Ok(empty).
+    // recv), but never reply. With nothing replying, discover retransmits and
+    // listens for the full budget, then returns Ok(empty).
     let silent = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
     let target = silent.local_addr().unwrap();
     let disc = DeviceDiscovery::with_target(target);
@@ -47,12 +48,40 @@ fn no_reply_returns_empty_within_budget() {
     let result = disc.discover().unwrap();
     drop(silent);
     assert!(result.is_empty());
-    // First-wait is 200 ms; we should be well under the 500 ms total cap.
+    // Bounded by the 500 ms hard cap (plus scheduling slack); must not hang.
     assert!(
-        start.elapsed() < Duration::from_millis(450),
-        "discover should return within the first-wait window, took {:?}",
+        start.elapsed() < Duration::from_millis(800),
+        "discover should return at the budget cap, took {:?}",
         start.elapsed(),
     );
+}
+
+#[test]
+fn discovery_retransmits_after_a_dropped_request() {
+    // A primary that ignores the first request (simulating a dropped request
+    // or reply) and answers only a later retransmit. Without retransmission
+    // this would return an empty result.
+    let socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    socket
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    let addr = socket.local_addr().unwrap();
+    let handle = thread::spawn(move || {
+        let mut buf = [0u8; PACKET_SIZE];
+        // Drop the first request.
+        let _ = socket.recv_from(&mut buf);
+        // Answer the second.
+        if let Ok((n, src)) = socket.recv_from(&mut buf) {
+            if parse_packet(&buf[..n]).map(|p| p.pkt_type) == Some(PKT_TYPE_DISCOVERY_REQUEST) {
+                socket.send_to(&encode_peer_info(0x77, true), src).unwrap();
+            }
+        }
+    });
+
+    let result = DeviceDiscovery::with_target(addr).discover().unwrap();
+    handle.join().unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].serial, 0x77);
 }
 
 #[test]

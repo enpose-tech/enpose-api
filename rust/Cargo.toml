@@ -14,4 +14,15 @@ name = "example"
 path = "example/example.rs"
 
 [dependencies]
-if-addrs = "0.13"
+# Network discovery and pose streaming. Gated behind the default `net`
+# feature so the wire types can be built for targets without a sockets
+# stack (e.g. wasm32) via `default-features = false`.
+if-addrs = { version = "0.13", optional = true }
+serde = { version = "1", features = ["derive"] }
+rmp-serde = "1.3.0"
+
+[features]
+default = ["net"]
+# Enables the networking parts of the API (DeviceDiscovery, PoseStream).
+# Without it, only the wire types and pure protocol constants compile.
+net = ["dep:if-addrs"]
