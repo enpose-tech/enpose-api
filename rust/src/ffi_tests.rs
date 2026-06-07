@@ -22,7 +22,7 @@ fn sample_pose(marker_id: u16) -> MarkerPose {
 
 fn encode_pose_data(serial: u32, poses: &[MarkerPose]) -> Vec<u8> {
     let mut packet = encode_pose_data_header(serial).to_vec();
-    packet.extend(rmp_serde::to_vec(poses).unwrap());
+    packet.extend(MarkerPose::encode_batch(poses));
     packet
 }
 

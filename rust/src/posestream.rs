@@ -317,12 +317,13 @@ impl PoseStream {
             // the loop) or a transient failure retried next iteration; only a
             // successful read carries poses. Append them and wake any blocking
             // receive waiting on the condvar.
-            if let Ok(n) = socket.recv(&mut buf)
-                && let Some(batch) = parse_pose_packet(&buf[..n])
-                && !batch.is_empty()
-            {
-                buffer.lock().unwrap().extend(batch);
-                available.notify_one();
+            if let Ok(n) = socket.recv(&mut buf) {
+                if let Some(batch) = parse_pose_packet(&buf[..n]) {
+                    if !batch.is_empty() {
+                        buffer.lock().unwrap().extend(batch);
+                        available.notify_one();
+                    }
+                }
             }
         }
     }
@@ -342,7 +343,7 @@ fn parse_pose_packet(data: &[u8]) -> Option<Vec<MarkerPose>> {
     if parsed.pkt_type != PKT_TYPE_POSE_DATA {
         return None;
     }
-    rmp_serde::from_slice::<Vec<MarkerPose>>(&data[PACKET_SIZE..]).ok()
+    MarkerPose::decode_batch(&data[PACKET_SIZE..])
 }
 
 #[cfg(test)]

@@ -71,10 +71,10 @@ fn discovery_retransmits_after_a_dropped_request() {
         // Drop the first request.
         let _ = socket.recv_from(&mut buf);
         // Answer the second.
-        if let Ok((n, src)) = socket.recv_from(&mut buf)
-            && parse_packet(&buf[..n]).map(|p| p.pkt_type) == Some(PKT_TYPE_DISCOVERY_REQUEST)
-        {
-            socket.send_to(&encode_peer_info(0x77, true), src).unwrap();
+        if let Ok((n, src)) = socket.recv_from(&mut buf) {
+            if parse_packet(&buf[..n]).map(|p| p.pkt_type) == Some(PKT_TYPE_DISCOVERY_REQUEST) {
+                socket.send_to(&encode_peer_info(0x77, true), src).unwrap();
+            }
         }
     });
 

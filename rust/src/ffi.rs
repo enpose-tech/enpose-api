@@ -72,7 +72,7 @@ pub struct EnposeDeviceInfo {
 /// # Safety
 ///
 /// `out_devices` and `out_count` must be valid, writable pointers.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn enpose_discover(
     out_devices: *mut *mut EnposeDeviceInfo,
     out_count: *mut usize,
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn enpose_discover(
 ///
 /// `devices`/`count` must be a pair returned by [`enpose_discover`] and not
 /// already freed. Passing `NULL` is allowed and does nothing.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn enpose_device_info_array_free(
     devices: *mut EnposeDeviceInfo,
     count: usize,
@@ -121,7 +121,7 @@ pub unsafe extern "C" fn enpose_device_info_array_free(
 /// # Safety
 ///
 /// `ip` must be a valid, null-terminated C string.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn enpose_pose_stream_connect(
     ip: *const c_char,
     create_thread: bool,
@@ -159,7 +159,7 @@ pub unsafe extern "C" fn enpose_pose_stream_connect(
 /// `stream` must be a handle from [`enpose_pose_stream_connect`] that has
 /// not been freed; `out_poses` and `out_count` must be valid, writable
 /// pointers.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn enpose_pose_stream_receive(
     stream: *mut PoseStream,
     block: bool,
@@ -192,7 +192,7 @@ pub unsafe extern "C" fn enpose_pose_stream_receive(
 ///
 /// `poses`/`count` must be a pair returned by [`enpose_pose_stream_receive`]
 /// and not already freed. Passing `NULL` is allowed and does nothing.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn enpose_marker_pose_array_free(poses: *mut MarkerPose, count: usize) {
     let _ = catch_unwind(|| unsafe { free_array(poses, count) });
 }
@@ -206,7 +206,7 @@ pub unsafe extern "C" fn enpose_marker_pose_array_free(poses: *mut MarkerPose, c
 ///
 /// `stream` must be a handle from [`enpose_pose_stream_connect`] that has
 /// not already been freed.
-#[unsafe(no_mangle)]
+#[no_mangle]
 pub unsafe extern "C" fn enpose_pose_stream_free(stream: *mut PoseStream) {
     if stream.is_null() {
         return;
