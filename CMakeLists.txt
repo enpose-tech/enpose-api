@@ -315,11 +315,16 @@ if(_enpose_is_top_level)
     set(CPACK_COMPONENTS_GROUPING ALL_COMPONENTS_IN_ONE)
     set(CPACK_COMPONENTS_ALL sdk extras)
 
-    # Component archives default to dumping their contents at the archive root;
-    # force the versioned enpose_api-<version>-<system>/ wrapper folder so the
-    # package unpacks into a single directory. In component mode this is the
-    # variable that takes effect (it overrides CPACK_INCLUDE_TOPLEVEL_DIRECTORY).
-    set(CPACK_COMPONENT_INCLUDE_TOPLEVEL_DIRECTORY ON)
+    # Component archives default to dumping their contents at the archive root.
+    # Wrap them in a versioned enpose_api-<version>-<system>/ folder when packaging
+    # on Windows, but unpack to the archive root on Linux. In component mode this
+    # is the variable that takes effect (it overrides
+    # CPACK_INCLUDE_TOPLEVEL_DIRECTORY).
+    if(WIN32)
+        set(CPACK_COMPONENT_INCLUDE_TOPLEVEL_DIRECTORY ON)
+    else()
+        set(CPACK_COMPONENT_INCLUDE_TOPLEVEL_DIRECTORY OFF)
+    endif()
 
     include(CPack)
 
