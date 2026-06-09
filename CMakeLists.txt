@@ -316,14 +316,14 @@ if(_enpose_is_top_level)
     set(CPACK_COMPONENTS_ALL sdk extras)
 
     # Component archives default to dumping their contents at the archive root.
-    # Wrap them in a versioned enpose_api-<version>-<system>/ folder when packaging
-    # on Windows, but unpack to the archive root on Linux. In component mode this
-    # is the variable that takes effect (it overrides
-    # CPACK_INCLUDE_TOPLEVEL_DIRECTORY).
+    # Wrap them in a versioned enpose_api-<version>-<system>/ folder on Linux, but
+    # unpack to the archive root on Windows -- both the MSVC and the MinGW builds,
+    # which each define WIN32. In component mode this is the variable that takes
+    # effect (it overrides CPACK_INCLUDE_TOPLEVEL_DIRECTORY).
     if(WIN32)
-        set(CPACK_COMPONENT_INCLUDE_TOPLEVEL_DIRECTORY ON)
-    else()
         set(CPACK_COMPONENT_INCLUDE_TOPLEVEL_DIRECTORY OFF)
+    else()
+        set(CPACK_COMPONENT_INCLUDE_TOPLEVEL_DIRECTORY ON)
     endif()
 
     include(CPack)
