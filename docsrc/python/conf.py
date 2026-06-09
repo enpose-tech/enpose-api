@@ -38,39 +38,54 @@ napoleon_numpy_docstring = False
 intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
 
 # ---------------------------------------------------------------------------
-# HTML output — furo theme themed with the Enpose / webgui palette.
-# Palette mirrors webgui/src/my_ui.rs (PRIMARY_COLOR #00ccff,
-# PRIMARY_COLOR_DARK #007f9f, SECONDARY_COLOR #f19640, side panel #00141a).
+# HTML output — alabaster theme themed with the Enpose / webgui palette.
 # ---------------------------------------------------------------------------
-html_theme = "furo"
+html_theme = "alabaster"
 html_title = "Enpose API — Python"
 html_static_path = ["_static"]
 html_css_files = ["enpose.css"]
 
-_enpose_palette = {
-    "color-brand-primary": "#00ccff",
-    "color-brand-content": "#00ccff",
-    "color-brand-visited": "#00ccff",
-    "color-background-primary": "#1b1b1b",
-    "color-background-secondary": "#00141a",
-    "color-background-hover": "#11343d",
-    "color-background-border": "#11343d",
-    "color-foreground-primary": "#ffffff",
-    "color-foreground-secondary": "#a9b3b6",
-    "color-foreground-muted": "#a9b3b6",
-    "color-foreground-border": "#11343d",
-    "color-api-name": "#00ccff",
-    "color-api-pre-name": "#f19640",
-    "color-api-keyword": "#a9b3b6",
-    "color-highlight-on-target": "#00343f",
-    "color-inline-code-background": "#00141a",
-    "color-code-background": "#00141a",
-    "color-code-foreground": "#ffffff",
-}
+# Dark code style; alabaster's default pygments style assumes a light page.
+pygments_style = "monokai"
 
-# Use the same (dark) palette for both colour schemes so the docs always render
-# in the webgui's dark look, regardless of the visitor's OS preference.
 html_theme_options = {
-    "light_css_variables": _enpose_palette,
-    "dark_css_variables": _enpose_palette,
+    # Page + body.
+    "base_bg": "#1b1b1b",
+    "base_text": "#ffffff",
+    "body_bg": "#1b1b1b",
+    "body_text": "#ffffff",
+    # Links: primary cyan, hover in the secondary (orange) accent like the webgui.
+    "link": "#00ccff",
+    "link_hover": "#f19640",
+    # Sidebar.
+    "sidebar_header": "#00ccff",
+    "sidebar_text": "#a9b3b6",
+    "sidebar_link": "#00ccff",
+    "sidebar_link_underscore": "#11343d",
+    "sidebar_list": "#ffffff",
+    "sidebar_hr": "#11343d",
+    "sidebar_search_button": "#11343d",
+    # Code / signatures sit on the elevated (side-panel) background.
+    "code_bg": "#00141a",
+    "code_text": "#ffffff",
+    "code_hover": "#11343d",
+    "code_highlight_bg": "#00141a",
+    "pre_bg": "#00141a",
+    "xref_bg": "#00141a",
+    "xref_border": "#11343d",
+    # Anchors, target highlight and viewcode highlight.
+    "highlight_bg": "#00343f",
+    "viewcode_target_bg": "#00343f",
+    "anchor": "#11343d",
+    "anchor_hover_fg": "#00ccff",
+    "anchor_hover_bg": "#11343d",
+    # Rules, tables, footer.
+    "hr_border": "#11343d",
+    "table_border": "#11343d",
+    "footer_text": "#a9b3b6",
+    # Neutral grays repurposed for the dark palette (admonition backgrounds,
+    # borders, footnotes, …).
+    "gray_1": "#a9b3b6",
+    "gray_2": "#11343d",
+    "gray_3": "#11343d",
 }

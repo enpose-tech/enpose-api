@@ -35,7 +35,7 @@ target_link_libraries(my_app PRIVATE enpose_api::enpose_api_cpp)
 ```
 
 (In an in-tree / `FetchContent` build the same target is provided without
-`find_package`; see the [top-level README](../README.md).)
+`find_package`; see the [top-level README](https://github.com/enpose-tech/enpose-api/blob/main/README.md).)
 
 ## Building the bundled example
 

@@ -1,8 +1,8 @@
-/* Enpose Sphinx (furo) theme tweaks.
+/* Enpose Sphinx (alabaster) theme tweaks.
  *
- * The brand colours are set as furo CSS variables in conf.py; this file carries
- * the shared Enpose palette and the extra rules furo does not expose as
- * variables. Palette mirrors webgui/src/my_ui.rs — keep in sync:
+ * The dark Enpose palette is mostly applied through alabaster's built-in colour
+ * options in conf.py; this file carries the extra rules alabaster does not
+ * expose as options. Palette mirrors webgui/src/my_ui.rs — keep in sync:
  *   PRIMARY_COLOR        #00ccff   PRIMARY_COLOR_DARK   #007f9f
  *   SECONDARY_COLOR      #f19640   side-panel / elevated #00141a
  */
@@ -17,26 +17,41 @@
     --enpose-border: #11343d;
 }
 
-/* Hover state uses the secondary (orange) accent, matching the webgui. */
-a:hover,
-.sidebar-tree a:hover {
+/* Sidebar links use the secondary (orange) accent on hover, matching the
+   webgui (alabaster's options only restyle the underline, not the colour). */
+div.sphinxsidebar a:hover {
     color: var(--enpose-secondary);
 }
 
-/* Code and signature blocks sit on the elevated (side-panel) background. */
-.highlight,
+/* Project title in the sidebar in the primary accent colour. */
+div.sphinxsidebar h1.logo a {
+    color: var(--enpose-primary);
+}
+
+/* Code and signature blocks sit on the elevated background with a subtle
+   border. */
+div.highlight,
 pre,
 code.literal {
     border: 1px solid var(--enpose-border);
 }
 
-/* API signatures: a primary-dark rule under each entry, like the webgui. */
+/* API signatures: a primary-dark rule down the left edge, like the webgui. */
 dl.py > dt {
     border-left: 3px solid var(--enpose-primary-dark);
     background: var(--enpose-bg-elevated);
+    padding-left: 8px;
 }
 
-/* Project title in the sidebar in the primary accent colour. */
-.sidebar-brand-text {
+/* Signature object/member name in the primary accent, the module/class prefix
+   in the secondary accent, and the leading keyword muted — mirrors the colours
+   furo applied via color-api-name / color-api-pre-name / color-api-keyword. */
+.sig-name.descname {
     color: var(--enpose-primary);
+}
+.sig-prename.descclassname {
+    color: var(--enpose-secondary);
+}
+dl.py em.property {
+    color: var(--enpose-text-muted);
 }
