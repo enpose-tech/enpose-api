@@ -51,7 +51,37 @@ else()
     set(CARGO_OUT_DIR "${ENPOSE_RUST_DIR}/target/release")
 endif()
 
-set(ENPOSE_LIB_NAME "${CMAKE_SHARED_LIBRARY_PREFIX}enpose_api${CMAKE_SHARED_LIBRARY_SUFFIX}")
+# cargo names its output after the Rust *target* ABI, which is not necessarily
+# the C toolchain's platform convention (CMAKE_SHARED_LIBRARY_*). On Windows the
+# two diverge: a MinGW CMake's convention is a "lib" prefix, but cargo emits
+# "enpose_api.dll" with no prefix, and the import-library extension differs
+# between the -gnu (.dll.a) and -msvc (.dll.lib) targets. Derive the artifact
+# names from the Rust host triple instead, so the imported library resolves for
+# whichever toolchain is in use.
+execute_process(
+    COMMAND "${CARGO_EXECUTABLE}" -vV
+    OUTPUT_VARIABLE _enpose_cargo_vv
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+string(REGEX MATCH "host: ([^\r\n]+)" _ "${_enpose_cargo_vv}")
+set(ENPOSE_RUST_HOST "${CMAKE_MATCH_1}")
+
+# ENPOSE_IMPLIB is the link-time import library; it exists only for Windows
+# targets and is left empty elsewhere (Linux/macOS link the shared object).
+set(ENPOSE_IMPLIB "")
+if(ENPOSE_RUST_HOST MATCHES "windows")
+    set(ENPOSE_LIB_NAME "enpose_api.dll")
+    if(ENPOSE_RUST_HOST MATCHES "gnu")
+        # *-windows-gnu: MinGW-style import library (untested path).
+        set(ENPOSE_IMPLIB "${CARGO_OUT_DIR}/enpose_api.dll.a")
+    else()
+        # *-windows-msvc: cargo emits <name>.dll.lib next to the DLL.
+        set(ENPOSE_IMPLIB "${CARGO_OUT_DIR}/enpose_api.dll.lib")
+    endif()
+elseif(ENPOSE_RUST_HOST MATCHES "darwin|apple")
+    set(ENPOSE_LIB_NAME "libenpose_api.dylib")
+else()
+    set(ENPOSE_LIB_NAME "libenpose_api.so")
+endif()
 set(ENPOSE_LIB "${CARGO_OUT_DIR}/${ENPOSE_LIB_NAME}")
 
 add_custom_command(
@@ -76,6 +106,14 @@ endif()
 # The compiled library, imported.
 add_library(enpose_api_shared SHARED IMPORTED GLOBAL)
 set_target_properties(enpose_api_shared PROPERTIES IMPORTED_LOCATION "${ENPOSE_LIB}")
+
+# A Windows shared library is linked against its import library, not the DLL
+# itself, so the imported target needs IMPORTED_IMPLIB there. ENPOSE_IMPLIB is
+# empty on platforms that link the shared object directly (Linux/macOS), where
+# this is skipped.
+if(ENPOSE_IMPLIB)
+    set_target_properties(enpose_api_shared PROPERTIES IMPORTED_IMPLIB "${ENPOSE_IMPLIB}")
+endif()
 
 # C interface: the shared library + the C header. The cargo build dependency
 # lives on this (non-imported) target so it propagates to consumers that link it.
@@ -117,6 +155,13 @@ install(FILES
 install(FILES "${ENPOSE_LIB}"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     COMPONENT sdk)
+
+# Windows consumers link the import library, so ship it alongside the DLL.
+if(ENPOSE_IMPLIB)
+    install(FILES "${ENPOSE_IMPLIB}"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        COMPONENT sdk)
+endif()
 
 set(ENPOSE_CONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/enpose_api")
 
@@ -172,24 +217,37 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/docsrc/package/README.md"
 install(CODE "
     message(STATUS \"enpose_api: generating API documentation for the package\")
     execute_process(
-        COMMAND \"${CMAKE_COMMAND}\" --build \"${CMAKE_BINARY_DIR}\" --target docs
+        COMMAND \"${CMAKE_COMMAND}\" -P \"${CMAKE_CURRENT_BINARY_DIR}/build_docs.cmake\"
         RESULT_VARIABLE _enpose_docs_rc)
+    # build_docs.cmake is best-effort: it skips any binding whose generator is
+    # missing or cannot run here, so the package carries whatever docs were
+    # produced rather than failing outright. A non-zero result means the script
+    # itself errored (not a skipped language); warn but still build the package.
     if(NOT _enpose_docs_rc EQUAL 0)
-        message(FATAL_ERROR \"enpose_api: failed to generate API documentation\")
+        message(WARNING \"enpose_api: documentation generation reported an error; packaging whatever docs were produced\")
     endif()"
     COMPONENT extras EXCLUDE_FROM_ALL)
 
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/docs/c"
-    DESTINATION "docs"
-    COMPONENT extras EXCLUDE_FROM_ALL)
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/docs/cpp"
-    DESTINATION "docs"
-    COMPONENT extras EXCLUDE_FROM_ALL)
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/docs/python"
-    DESTINATION "docs"
-    COMPONENT extras EXCLUDE_FROM_ALL)
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/docs/rust"
-    DESTINATION "docs"
+# Install each binding's generated docs, but only if it was actually produced.
+# The `docs` target above skips any language whose generator is missing
+# (Doxygen for c/cpp, sphinx-build for python), so the corresponding
+# docs/<lang> directory may not exist. A plain install(DIRECTORY) on a missing
+# source is fatal, which would make the package unbuildable without the full
+# doc toolchain. Copy at install time and skip whatever was not generated, so
+# the package carries whatever docs are available. ${CMAKE_CURRENT_SOURCE_DIR}
+# is baked in at configure time; the per-language checks run at install time.
+install(CODE "
+    foreach(_lang c cpp python rust)
+        set(_docsrc \"${CMAKE_CURRENT_SOURCE_DIR}/docs/\${_lang}\")
+        file(GLOB _doc_contents \"\${_docsrc}/*\")
+        if(IS_DIRECTORY \"\${_docsrc}\" AND _doc_contents)
+            file(INSTALL \"\${_docsrc}\"
+                DESTINATION \"\${CMAKE_INSTALL_PREFIX}/docs\"
+                USE_SOURCE_PERMISSIONS)
+        else()
+            message(STATUS \"enpose_api: [skip] docs/\${_lang} — not generated\")
+        endif()
+    endforeach()"
     COMPONENT extras EXCLUDE_FROM_ALL)
 
 # C and C++: example source + a standalone CMakeLists that builds against the
@@ -240,8 +298,16 @@ if(_enpose_is_top_level)
     set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Enpose 6-DoF tracking API (prebuilt SDK)")
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
     set(CPACK_GENERATOR "TGZ;ZIP")
+
+    # Normalize the processor name so 64-bit x86 builds use "x64" on every
+    # platform. CMAKE_SYSTEM_PROCESSOR reports "AMD64" on Windows and "x86_64"
+    # on Linux for the same architecture.
+    set(_enpose_package_arch "${CMAKE_SYSTEM_PROCESSOR}")
+    if(_enpose_package_arch MATCHES "^(AMD64|amd64|x86_64|x64)$")
+        set(_enpose_package_arch "x64")
+    endif()
     set(CPACK_PACKAGE_FILE_NAME
-        "enpose_api-${PROJECT_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+        "enpose_api-${PROJECT_VERSION}-${CMAKE_SYSTEM_NAME}-${_enpose_package_arch}")
 
     # Merge every component -- including the EXCLUDE_FROM_ALL `extras` -- into a
     # single archive rather than emitting one archive per component.
@@ -296,30 +362,22 @@ if(_enpose_is_top_level)
     set(ENPOSE_DOCS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/docs")
     set(ENPOSE_DOCSRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/docsrc")
 
-    find_program(SPHINX_BUILD_EXECUTABLE sphinx-build)
+    # On Windows, prefer a real sphinx-build.exe over an extension-less wrapper
+    # script: listing the .exe first makes find_program search every PATH dir for
+    # it before falling back. Harmless on Linux (no .exe exists).
+    find_program(SPHINX_BUILD_EXECUTABLE NAMES sphinx-build.exe sphinx-build)
     find_program(DOXYGEN_EXECUTABLE doxygen)
     # CARGO_EXECUTABLE and ENPOSE_RUST_DIR are set near the top of this file.
 
-    add_custom_target(docs
-        COMMENT "Generating API documentation into docs/<language>/")
+    # All doc generators are expected to come from the same toolchain as this
+    # build (a native MSVC build uses native tools; an MSYS2/MinGW build uses the
+    # mingw64/ucrt64 tools; Linux uses the system tools). Within one chain every
+    # tool accepts the native paths CMake produces, so no path translation is
+    # needed. Sphinx (Python) and doxygen are invoked directly in build_docs.cmake.
 
-    # --- Python: Sphinx ---
-    if(SPHINX_BUILD_EXECUTABLE)
-        add_custom_command(TARGET docs POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E make_directory "${ENPOSE_DOCS_DIR}/python"
-            COMMAND "${SPHINX_BUILD_EXECUTABLE}" -q -b html
-                    -d "${CMAKE_CURRENT_BINARY_DIR}/sphinx-doctrees"
-                    "${ENPOSE_DOCSRC_DIR}/python" "${ENPOSE_DOCS_DIR}/python"
-            COMMENT "docs: python -> docs/python (Sphinx)"
-            VERBATIM)
-    else()
-        add_custom_command(TARGET docs POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E echo
-                    "docs: [skip] python — sphinx-build not found"
-            VERBATIM)
-    endif()
-
-    # --- C and C++: Doxygen (one configured Doxyfile per language) ---
+    # Doxygen is driven by one configured Doxyfile per language; configure them
+    # here (at configure time) so build_docs.cmake can just invoke doxygen on the
+    # generated files.
     if(DOXYGEN_EXECUTABLE)
         set(DOXY_EXTRA_CSS "${ENPOSE_DOCSRC_DIR}/doxygen/enpose-doxygen.css")
 
@@ -340,47 +398,19 @@ if(_enpose_is_top_level)
         set(DOXY_OPTIMIZE_C "NO")
         configure_file("${ENPOSE_DOCSRC_DIR}/doxygen/Doxyfile.in"
                        "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile.cpp" @ONLY)
-
-        add_custom_command(TARGET docs POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E make_directory "${ENPOSE_DOCS_DIR}/c"
-            COMMAND "${DOXYGEN_EXECUTABLE}" "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile.c"
-            COMMENT "docs: c -> docs/c (Doxygen)"
-            VERBATIM)
-        add_custom_command(TARGET docs POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E make_directory "${ENPOSE_DOCS_DIR}/cpp"
-            COMMAND "${DOXYGEN_EXECUTABLE}" "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile.cpp"
-            COMMENT "docs: cpp -> docs/cpp (Doxygen)"
-            VERBATIM)
-    else()
-        add_custom_command(TARGET docs POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E echo
-                    "docs: [skip] c/cpp — doxygen not found"
-            VERBATIM)
     endif()
 
-    # --- Rust: rustdoc (cargo doc) ---
-    # rustdoc's custom-CSS flag (--extend-css) is gated behind -Z
-    # unstable-options; RUSTC_BOOTSTRAP=1 enables it on a stable toolchain. Docs
-    # are generated into the crate's target/doc, copied to docs/rust, then a
-    # redirect at docs/rust/index.html points into the crate's page.
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/rust-doc-redirect.html"
-        "<!DOCTYPE html><meta http-equiv=\"refresh\" content=\"0; url=enpose_api/index.html\">\n")
-    add_custom_command(TARGET docs POST_BUILD
-        # Force a fresh rustdoc run: cargo doc is incremental and keys only on
-        # the Rust sources, so it would otherwise reuse a cached target/doc and
-        # ignore edits to the --extend-css stylesheet.
-        COMMAND "${CMAKE_COMMAND}" -E rm -rf "${ENPOSE_RUST_DIR}/target/doc"
-        COMMAND "${CMAKE_COMMAND}" -E env
-                RUSTC_BOOTSTRAP=1
-                "RUSTDOCFLAGS=-Z unstable-options --extend-css ${ENPOSE_DOCSRC_DIR}/rust/enpose-rustdoc.css"
-                "${CARGO_EXECUTABLE}" doc --no-deps --quiet
-        COMMAND "${CMAKE_COMMAND}" -E rm -rf "${ENPOSE_DOCS_DIR}/rust"
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory
-                "${ENPOSE_RUST_DIR}/target/doc" "${ENPOSE_DOCS_DIR}/rust"
-        COMMAND "${CMAKE_COMMAND}" -E copy
-                "${CMAKE_CURRENT_BINARY_DIR}/rust-doc-redirect.html"
-                "${ENPOSE_DOCS_DIR}/rust/index.html"
-        WORKING_DIRECTORY "${ENPOSE_RUST_DIR}"
-        COMMENT "docs: rust -> docs/rust (rustdoc)"
+    # All per-language doc generation lives in build_docs.cmake, run via a single
+    # `cmake -P`. Each language is generated independently and non-fatally there,
+    # so a generator that is missing or cannot run in this environment is skipped
+    # with a note instead of breaking the `docs` target or the `dist` package.
+    # Using one CMake script also avoids per-generator shell quoting differences
+    # between Make, Ninja and MSBuild.
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/build_docs.cmake.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/build_docs.cmake" @ONLY)
+
+    add_custom_target(docs
+        COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/build_docs.cmake"
+        COMMENT "Generating API documentation into docs/<language>/"
         VERBATIM)
 endif()

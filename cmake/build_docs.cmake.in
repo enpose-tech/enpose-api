@@ -1,0 +1,111 @@
+# Best-effort API documentation generator (configured from build_docs.cmake.in
+# into the build tree, then run with `cmake -P build_docs.cmake`).
+#
+# This backs the `docs` target and the documentation step of the `dist` package.
+# Each binding is generated independently and NON-FATALLY: a generator that is
+# missing, or that cannot run in this environment, is skipped with a note rather
+# than aborting the others or failing the build. This matters on Windows, where
+# an MSYS2/Cygwin sphinx-build or doxygen cannot consume the native (drive-letter)
+# paths a Visual Studio build hands it; such a tool is skipped, and `dist` still
+# produces a package carrying whatever docs the working toolchain generated.
+#
+# All @VARS@ are substituted at configure time by configure_file(... @ONLY).
+
+set(_docs_dir   "@ENPOSE_DOCS_DIR@")
+set(_docsrc_dir "@ENPOSE_DOCSRC_DIR@")
+set(_bin_dir    "@CMAKE_CURRENT_BINARY_DIR@")
+set(_cmake      "@CMAKE_COMMAND@")
+set(_doxygen    "@DOXYGEN_EXECUTABLE@")
+set(_cargo      "@CARGO_EXECUTABLE@")
+set(_rust_dir   "@ENPOSE_RUST_DIR@")
+
+set(_sphinx        "@SPHINX_BUILD_EXECUTABLE@")
+set(_sphinx_src      "@ENPOSE_DOCSRC_DIR@/python")
+set(_sphinx_out      "@ENPOSE_DOCS_DIR@/python")
+set(_sphinx_doctrees "@CMAKE_CURRENT_BINARY_DIR@/sphinx-doctrees")
+
+# Run a generator. On failure, print a [skip] note and keep going (never fatal);
+# record success in _doc_<label>_ok for callers that need follow-up steps.
+# Usage: run_doc(<label> [WORKDIR <dir>] COMMAND <argv...>)
+#
+# The generator's own stdout/stderr is captured rather than inherited. This is
+# deliberate: when this script runs under MSBuild (the Visual Studio generator
+# building the `docs`/`dist` target), MSBuild scrapes child output for lines like
+# "error:" and promotes them to build errors, failing the target even though we
+# handle the failure ourselves. Capturing the output keeps it away from that
+# scraper; on failure it is written to a per-language log for diagnostics.
+function(run_doc label)
+    cmake_parse_arguments(_a "" "WORKDIR" "COMMAND" ${ARGN})
+    set(_wd "")
+    if(_a_WORKDIR)
+        set(_wd WORKING_DIRECTORY "${_a_WORKDIR}")
+    endif()
+    execute_process(COMMAND ${_a_COMMAND} ${_wd}
+        RESULT_VARIABLE _rc
+        OUTPUT_VARIABLE _out
+        ERROR_VARIABLE _err)
+    if(_rc EQUAL 0)
+        set(_doc_${label}_ok TRUE PARENT_SCOPE)
+    else()
+        # _rc is a number when the process ran and returned non-zero, or a string
+        # (e.g. "No such file or directory") when it could not be launched.
+        if(_rc MATCHES "^-?[0-9]+$")
+            set(_why "exit ${_rc}")
+        else()
+            set(_why "could not run generator")
+        endif()
+        set(_log "${_bin_dir}/docs-${label}.log")
+        file(WRITE "${_log}" "${_out}${_err}")
+        message(STATUS "docs: [skip] ${label} - ${_why}; see ${_log}")
+        set(_doc_${label}_ok FALSE PARENT_SCOPE)
+    endif()
+endfunction()
+
+# --- Python: Sphinx ---
+if(_sphinx)
+    message(STATUS "docs: python -> docs/python (Sphinx)")
+    file(MAKE_DIRECTORY "${_sphinx_out}")
+    run_doc(python COMMAND "${_sphinx}" -q -b html
+            -d "${_sphinx_doctrees}" "${_sphinx_src}" "${_sphinx_out}")
+else()
+    message(STATUS "docs: [skip] python - sphinx-build not found")
+endif()
+
+# --- C and C++: Doxygen (one configured Doxyfile per language) ---
+# Doxygen only creates the leaf of OUTPUT_DIRECTORY, not missing parents, so it
+# errors out if docs/ does not exist yet (e.g. when Sphinx above was skipped).
+# Pre-create the per-language output dirs (file(MAKE_DIRECTORY) is recursive).
+if(_doxygen)
+    message(STATUS "docs: c -> docs/c (Doxygen)")
+    file(MAKE_DIRECTORY "${_docs_dir}/c")
+    run_doc(c COMMAND "${_doxygen}" "${_bin_dir}/Doxyfile.c")
+    message(STATUS "docs: cpp -> docs/cpp (Doxygen)")
+    file(MAKE_DIRECTORY "${_docs_dir}/cpp")
+    run_doc(cpp COMMAND "${_doxygen}" "${_bin_dir}/Doxyfile.cpp")
+else()
+    message(STATUS "docs: [skip] c/cpp - doxygen not found")
+endif()
+
+# --- Rust: rustdoc (cargo doc) ---
+# rustdoc's custom-CSS flag (--extend-css) is gated behind -Z unstable-options;
+# RUSTC_BOOTSTRAP=1 enables it on a stable toolchain. Docs land in the crate's
+# target/doc, are copied to docs/rust, then a redirect points into the crate page.
+if(_cargo)
+    message(STATUS "docs: rust -> docs/rust (rustdoc)")
+    # Force a fresh rustdoc run: cargo doc is incremental and keys only on the
+    # Rust sources, so it would otherwise reuse a cached target/doc and ignore
+    # edits to the --extend-css stylesheet.
+    file(REMOVE_RECURSE "${_rust_dir}/target/doc")
+    run_doc(rust WORKDIR "${_rust_dir}" COMMAND "${_cmake}" -E env
+            RUSTC_BOOTSTRAP=1
+            "RUSTDOCFLAGS=-Z unstable-options --extend-css ${_docsrc_dir}/rust/enpose-rustdoc.css"
+            "${_cargo}" doc --no-deps --quiet)
+    if(_doc_rust_ok)
+        file(REMOVE_RECURSE "${_docs_dir}/rust")
+        file(COPY "${_rust_dir}/target/doc/" DESTINATION "${_docs_dir}/rust")
+        file(WRITE "${_docs_dir}/rust/index.html"
+            "<!DOCTYPE html><meta http-equiv=\"refresh\" content=\"0; url=enpose_api/index.html\">\n")
+    endif()
+else()
+    message(STATUS "docs: [skip] rust - cargo not found")
+endif()

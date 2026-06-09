@@ -1,4 +1,8 @@
-build/
+# Build trees (build/, plus throwaway variants like build-msystest/)
+build*/
 
 # Generated API documentation (cmake --build <dir> --target docs)
 /docs/
+
+# Editor backup files
+*~
