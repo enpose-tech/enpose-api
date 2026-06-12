@@ -1,8 +1,9 @@
 # Enpose API — Rust
 
-The native Rust implementation of the Enpose tracking API, and the source of
-truth for the [C](../c) and [C++](../cpp) bindings (which call into the C ABI
-this crate exports).
+[Enpose](https://enpose.tech) builds optical tracking systems that deliver
+precise 6-DoF poses of active markers in real time.
+
+The native Rust implementation of the Enpose tracking API.
 
 It covers the full client workflow:
 
