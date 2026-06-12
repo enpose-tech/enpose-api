@@ -1,5 +1,8 @@
 //! Public Rust API for the Enpose 6-DoF tracking system.
 //!
+//! [Enpose](https://enpose.tech) builds optical tracking systems that
+//! deliver precise 6-DoF poses of active markers in real time.
+//!
 //! This API lets external applications discover Enpose tracker devices on
 //! the local network ([`DeviceDiscovery`]) and connect to one to receive a
 //! live stream of marker poses ([`PoseStream`]).
