@@ -27,6 +27,22 @@ Three bindings are provided:
 | C++      | [`cpp/`](cpp)       | Header-only RAII wrapper over the C API. |
 | Python   | [`python/`](python) | cffi binding that loads the shared library at run time. |
 
+## Coordinate system
+
+Poses are reported in a right-handed world frame whose origin and axes are
+decided by the device's extrinsics calibration:
+
+- **By default** the frame is the reference sensor's optical frame: the origin
+  sits at that sensor, **+X** points to its right, **+Y** down, and **+Z** into
+  the scene — so a marker in front of the device has a positive `z`.
+- **Calibrated against a measured origin**, the frame is the one marked out
+  there instead.
+- **With a measured ground plane**, that plane becomes `z = 0` and **+Z** points
+  up out of it.
+
+Positions are in meters. Treat the axes as a property of the calibration rather
+than a fixed convention — recalibrating a device can move the frame.
+
 ## Layout
 
 ```

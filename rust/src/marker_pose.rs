@@ -20,6 +20,23 @@
 /// [`position_rmse`](Self::position_rmse)) are in **meters**; rotation error
 /// ([`rotation_rmse`](Self::rotation_rmse)) is in **radians**.
 ///
+/// # Coordinate system
+///
+/// The world frame is right-handed, and where its origin and axes lie is
+/// decided by the device's extrinsics calibration:
+///
+/// * By default it is the reference sensor's optical frame — the origin at
+///   that sensor, **+X** to its right, **+Y** down and **+Z** pointing into
+///   the scene, so a marker in front of the device has a positive `z`.
+/// * If the device was calibrated against a measured origin, the frame is the
+///   one the operator marked out there instead.
+/// * If a ground plane was measured, that plane becomes `z = 0` with **+Z**
+///   pointing up out of it.
+///
+/// A device therefore reports poses in whichever of these frames it was last
+/// calibrated for, and recalibrating it can move the frame. Treat the axes as
+/// a property of the calibration rather than a fixed convention.
+///
 /// The layout is `#[repr(C)]` so the C API can use a struct with the same
 /// fields directly. This does not affect the MessagePack wire format, which
 /// is derived from the field definitions, not the memory layout.

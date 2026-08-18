@@ -140,6 +140,16 @@ class MarkerPose:
 
     Units: ``x``/``y``/``z`` and ``position_rmse`` are in meters;
     ``rotation_rmse`` is in radians.
+
+    The world frame is right-handed, and where its origin and axes lie is
+    decided by the device's extrinsics calibration. By default it is the
+    reference sensor's optical frame -- origin at that sensor, ``+X`` to its
+    right, ``+Y`` down and ``+Z`` into the scene, so a marker in front of the
+    device has a positive ``z``. Calibrating against a measured origin puts
+    the frame there instead, and measuring a ground plane makes that plane
+    ``z = 0`` with ``+Z`` pointing up out of it. Treat the axes as a property
+    of the calibration rather than a fixed convention: recalibrating a device
+    can move the frame.
     """
 
     timestamp: int
