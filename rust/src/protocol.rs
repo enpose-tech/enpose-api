@@ -71,9 +71,10 @@ pub const PKT_TYPE_POSE_SUBSCRIBE: u8 = 2;
 pub const PKT_TYPE_POSE_UNSUBSCRIBE: u8 = 3;
 
 /// Packet type: a pose-data datagram. The fixed [`PACKET_SIZE`] header is
-/// followed by a MessagePack-encoded `Vec<MarkerPose>` starting at offset
-/// [`PACKET_SIZE`]. One datagram carries all markers localized from a
-/// single camera frame. Sent device → client on [`POSE_PORT`].
+/// followed by a batch of poses starting at offset [`PACKET_SIZE`], encoded
+/// with [`crate::MarkerPose::encode_batch`]. One datagram carries all markers
+/// localized from a single camera frame. Sent device → client on
+/// [`POSE_PORT`].
 pub const PKT_TYPE_POSE_DATA: u8 = 4;
 
 /// How long the device keeps a pose-stream client without hearing a
@@ -125,9 +126,9 @@ pub fn encode_pose_unsubscribe() -> [u8; PACKET_SIZE] {
 }
 
 /// Build the fixed header of a [`PKT_TYPE_POSE_DATA`] packet. The caller
-/// appends the MessagePack-encoded pose payload after this header; the
-/// receiver decodes the payload from offset [`PACKET_SIZE`]. `serial` is
-/// the sending device's factory serial.
+/// appends the encoded pose payload after this header; the receiver decodes
+/// the payload from offset [`PACKET_SIZE`]. `serial` is the sending device's
+/// factory serial.
 pub fn encode_pose_data_header(serial: u32) -> [u8; PACKET_SIZE] {
     encode(serial, false, PKT_TYPE_POSE_DATA)
 }

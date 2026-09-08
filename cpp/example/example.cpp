@@ -52,9 +52,10 @@ int main() {
             // manual polling delay is needed.
             for (const auto& pose : stream.receive(/*block=*/true)) {
                 std::printf(
-                    "  t=%10llu us  marker %3u: pos=(%+.4f, %+.4f, %+.4f) sensors=%u\n",
+                    "  t=%10llu us  marker %3u: pos=(%+.4f, %+.4f, %+.4f) sensors=%u "
+                    "emitters=%u\n",
                     static_cast<unsigned long long>(pose.timestamp), pose.marker_id,
-                    pose.x, pose.y, pose.z, pose.sensors);
+                    pose.x, pose.y, pose.z, pose.sensors, pose.observed_emitters);
             }
         }
     } catch (const enpose::Error& e) {

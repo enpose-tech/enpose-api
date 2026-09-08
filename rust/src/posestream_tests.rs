@@ -19,6 +19,7 @@ fn sample_pose(marker_id: u16) -> MarkerPose {
         position_rmse: 0.1,
         rotation_rmse: 0.01,
         sensors: 2,
+        observed_emitters: 4,
     }
 }
 

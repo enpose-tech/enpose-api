@@ -58,7 +58,8 @@ def main() -> int:
                     print(
                         f"  t={pose.timestamp:>10} us  marker {pose.marker_id:>3}: "
                         f"pos=({pose.x:+.4f}, {pose.y:+.4f}, {pose.z:+.4f}) "
-                        f"sensors={pose.sensors}"
+                        f"sensors={pose.sensors} "
+                        f"emitters={pose.observed_emitters}"
                     )
     except enpose_api.Error as exc:
         print(f"error: {exc}", file=sys.stderr)

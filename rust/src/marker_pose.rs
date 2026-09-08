@@ -38,8 +38,9 @@
 /// a property of the calibration rather than a fixed convention.
 ///
 /// The layout is `#[repr(C)]` so the C API can use a struct with the same
-/// fields directly. This does not affect the MessagePack wire format, which
-/// is derived from the field definitions, not the memory layout.
+/// fields directly. This does not affect the wire format, which is the
+/// fixed-layout big-endian codec below, defined by the field definitions
+/// rather than by the memory layout.
 #[derive(Clone, Debug, PartialEq)]
 #[repr(C)]
 pub struct MarkerPose {
@@ -65,13 +66,25 @@ pub struct MarkerPose {
     pub rotation_rmse: f64,
     /// Number of sensors that contributed to this measurement.
     pub sensors: u8,
+    /// Number of marker emitters (LEDs) whose measurements contributed to
+    /// this pose estimate.
+    ///
+    /// The standard marker carries four emitters. A lower count means some of
+    /// them were occluded or could not be decoded, and the pose was fitted
+    /// from a reduced — and less symmetric — set of points, which biases it.
+    /// Filter on this value to reject poses computed from a partial view.
+    ///
+    /// It is `0` on a pose carried purely by prediction, where no emitter was
+    /// measured at all in this update.
+    pub observed_emitters: u8,
 }
 
 impl MarkerPose {
     /// Wire size of one pose record produced by [`Self::encode_batch`]:
     /// `timestamp(8) + marker_id(2) + x/y/z(24) + rotation(72) +
-    /// position_rmse(8) + rotation_rmse(8) + sensors(1)`.
-    const ENCODED_SIZE: usize = 123;
+    /// position_rmse(8) + rotation_rmse(8) + sensors(1) +
+    /// observed_emitters(1)`.
+    const ENCODED_SIZE: usize = 124;
 
     /// Encode a batch of poses into the pose-data payload that follows the
     /// fixed packet header on the wire.
@@ -101,6 +114,7 @@ impl MarkerPose {
             buf.extend_from_slice(&pose.position_rmse.to_be_bytes());
             buf.extend_from_slice(&pose.rotation_rmse.to_be_bytes());
             buf.push(pose.sensors);
+            buf.push(pose.observed_emitters);
         }
         buf
     }
@@ -137,6 +151,7 @@ impl MarkerPose {
             position_rmse: f64_at(106),
             rotation_rmse: f64_at(114),
             sensors: b[122],
+            observed_emitters: b[123],
         }
     }
 }

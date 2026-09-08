@@ -31,8 +31,12 @@ namespace enpose {
 ///
 /// Alias of the C POD struct, so all fields are available directly:
 /// `timestamp`, `marker_id`, `x`/`y`/`z`, `rotation[9]`, `position_rmse`,
-/// `rotation_rmse`, `sensors`. Units: `x`/`y`/`z` and `position_rmse` are in
-/// meters; `rotation_rmse` is in radians.
+/// `rotation_rmse`, `sensors`, `observed_emitters`. Units: `x`/`y`/`z` and
+/// `position_rmse` are in meters; `rotation_rmse` is in radians.
+///
+/// `observed_emitters` counts the marker LEDs whose measurements contributed
+/// to the pose (four on the standard marker); a lower count means some were
+/// occluded, leaving the pose fitted from a reduced set of points.
 ///
 /// The world frame is right-handed, and where its origin and axes lie is
 /// decided by the device's extrinsics calibration. By default it is the

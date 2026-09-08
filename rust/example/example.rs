@@ -53,7 +53,7 @@ fn main() -> std::io::Result<()> {
         // polling delay is needed.
         for pose in stream.receive_pose_updates(true)? {
             println!(
-                "  t={:>10}us marker {:>3}: pos=({:+.4}, {:+.4}, {:+.4}) rmse={:.4} sensors={}",
+                "  t={:>10}us marker {:>3}: pos=({:+.4}, {:+.4}, {:+.4}) rmse={:.4} sensors={} emitters={}",
                 pose.timestamp,
                 pose.marker_id,
                 pose.x,
@@ -61,6 +61,7 @@ fn main() -> std::io::Result<()> {
                 pose.z,
                 pose.position_rmse,
                 pose.sensors,
+                pose.observed_emitters,
             );
         }
     }

@@ -71,9 +71,10 @@ int main(void) {
             break;
         }
         for (size_t i = 0; i < count; i++) {
-            printf("  t=%10lu us  marker %3u: pos=(%+.4f, %+.4f, %+.4f) sensors=%u\n",
+            printf("  t=%10lu us  marker %3u: pos=(%+.4f, %+.4f, %+.4f) sensors=%u emitters=%u\n",
                    (unsigned long)poses[i].timestamp, poses[i].marker_id,
-                   poses[i].x, poses[i].y, poses[i].z, poses[i].sensors);
+                   poses[i].x, poses[i].y, poses[i].z, poses[i].sensors,
+                   poses[i].observed_emitters);
         }
         enpose_marker_pose_array_free(poses, count);
     }

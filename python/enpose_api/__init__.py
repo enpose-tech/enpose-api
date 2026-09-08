@@ -52,6 +52,7 @@ typedef struct EnposeMarkerPose {
     double position_rmse;
     double rotation_rmse;
     uint8_t sensors;
+    uint8_t observed_emitters;
 } EnposeMarkerPose;
 
 typedef struct EnposePoseStream EnposePoseStream;
@@ -170,6 +171,15 @@ class MarkerPose:
     """RMS rotation error (radians, axis-angle magnitude)."""
     sensors: int
     """Number of sensors that contributed to this pose."""
+    observed_emitters: int
+    """Number of marker emitters (LEDs) that contributed to this pose.
+
+    The standard marker carries four. A lower count means some were occluded
+    or could not be decoded, so the pose was fitted from a reduced set of
+    points and is correspondingly biased; ``0`` means the pose was carried
+    purely by prediction. Filter on this value to reject poses computed from
+    a partial view.
+    """
 
 
 def _raise_status(func: str, status: int) -> None:
@@ -213,6 +223,7 @@ def _marker_pose(c) -> MarkerPose:
         position_rmse=float(c.position_rmse),
         rotation_rmse=float(c.rotation_rmse),
         sensors=int(c.sensors),
+        observed_emitters=int(c.observed_emitters),
     )
 
 

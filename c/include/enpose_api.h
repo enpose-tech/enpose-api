@@ -71,6 +71,14 @@ typedef struct EnposeMarkerPose {
     double position_rmse;   /**< RMS position error, in meters (units of x/y/z). */
     double rotation_rmse;   /**< RMS rotation error (radians, axis-angle magnitude). */
     uint8_t sensors;        /**< Number of sensors that contributed. */
+    /**
+     * Number of marker emitters (LEDs) whose measurements contributed to this
+     * pose. The standard marker carries four; a lower count means some were
+     * occluded or could not be decoded, so the pose was fitted from a reduced
+     * set of points and might be correspondingly biased. 0 on a pose carried purely
+     * by prediction. Filter on this to reject poses from a partial view.
+     */
+    uint8_t observed_emitters;
 } EnposeMarkerPose;
 
 /** Opaque handle to a live pose stream. */
