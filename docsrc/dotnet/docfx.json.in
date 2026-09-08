@@ -1,0 +1,46 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+
+  "//": [
+    "docfx configuration for the Enpose API .NET binding, configured into the",
+    "build tree by the top-level CMakeLists and run by cmake/build_docs.cmake.in",
+    "as part of the `docs` target.",
+    "docfx resolves both input paths and cross-page links relative to this file,",
+    "so the whole doc source tree is staged next to it: docfx-src/ holds the",
+    "landing page (copied from docsrc/dotnet) plus the API metadata extracted",
+    "from the binding project's net8.0 target into docfx-src/api/, and",
+    "docfx-template/ holds the Enpose theme. Only the output directory is",
+    "absolute: docs/dotnet/."
+  ],
+
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "@ENPOSE_DOTNET_DIR@/Enpose.Api",
+          "files": [ "Enpose.Api.csproj" ]
+        }
+      ],
+      "dest": "docfx-src/api",
+      "properties": { "TargetFramework": "net8.0" }
+    }
+  ],
+
+  "build": {
+    "content": [
+      {
+        "src": "docfx-src",
+        "files": [ "**/*.yml", "**/*.md" ]
+      }
+    ],
+    "output": "@ENPOSE_DOCS_DIR@/dotnet",
+    "template": [ "default", "modern", "docfx-template" ],
+    "globalMetadata": {
+      "_appName": "Enpose API — .NET",
+      "_appTitle": "Enpose API — .NET",
+      "_enableSearch": true,
+      "_disableContribution": true
+    },
+    "postProcessors": [ "ExtractSearchIndex" ]
+  }
+}

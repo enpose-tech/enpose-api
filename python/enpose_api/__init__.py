@@ -68,6 +68,38 @@ void enpose_marker_pose_array_free(EnposeMarkerPose *poses, size_t count);
 void enpose_pose_stream_free(EnposePoseStream *stream);
 """
 
+# Expected memory layout of the C ABI structs: struct name -> (size, {field:
+# (offset, width)}). The ABI is defined by rust/src/ffi.rs, which carries this
+# table and the list of bindings that mirror it; ``_verify_layout`` below
+# checks the _CDEF transcription above against it at import time, so a struct
+# that drifted raises instead of silently misreading every pose. Widths are
+# checked alongside offsets because widening a field can consume the padding
+# beside it, leaving every offset and the total size unchanged.
+#
+# 64-bit platforms only, matching the other bindings' checks: a 32-bit x86 ABI
+# aligns doubles to 4 and produces a different, equally valid layout.
+_EXPECTED_LAYOUT = {
+    "EnposeDeviceInfo": (
+        56,
+        {"ip": (0, 46), "serial": (48, 4), "compatible": (52, 1)},
+    ),
+    "EnposeMarkerPose": (
+        136,
+        {
+            "timestamp": (0, 8),
+            "marker_id": (8, 2),
+            "x": (16, 8),
+            "y": (24, 8),
+            "z": (32, 8),
+            "rotation": (40, 72),
+            "position_rmse": (112, 8),
+            "rotation_rmse": (120, 8),
+            "sensors": (128, 1),
+            "observed_emitters": (129, 1),
+        },
+    ),
+}
+
 # Human-readable text for the non-OK status codes.
 _STATUS_TEXT = {
     -1: "invalid argument",
@@ -120,7 +152,39 @@ def _load_library():
     )
 
 
+def _verify_layout(ffi) -> None:
+    """Check the C declarations above against the ABI's documented layout.
+
+    Raises :class:`Error` on a mismatch; a wrong layout would otherwise be
+    read as plausible-looking nonsense on every call.
+    """
+    if ffi.sizeof("void *") != 8:
+        return  # see _EXPECTED_LAYOUT: 64-bit platforms only
+    for name, (size, fields) in _EXPECTED_LAYOUT.items():
+        actual = {
+            field_name: (field.offset, ffi.sizeof(field.type))
+            for field_name, field in ffi.typeof(name).fields
+        }
+        problems = []
+        if ffi.sizeof(name) != size:
+            problems.append(f"size is {ffi.sizeof(name)}, expected {size}")
+        problems += [
+            f"{field_name} is at {actual.get(field_name)}, expected {expected}"
+            for field_name, expected in fields.items()
+            if actual.get(field_name) != expected
+        ]
+        problems += [f"{field_name} is not part of the ABI" for field_name in actual
+                     if field_name not in fields]
+        if problems:
+            raise Error(
+                f"{name} does not match the Enpose ABI, so this binding would "
+                f"misread every result ({'; '.join(problems)}). Field entries "
+                "are (offset, width) in bytes."
+            )
+
+
 _ffi, _lib = _load_library()
+_verify_layout(_ffi)
 
 
 @dataclass(frozen=True)

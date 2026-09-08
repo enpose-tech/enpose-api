@@ -18,7 +18,7 @@ the local network. It covers the full client workflow:
   timestamp).
 
 The API is implemented in Rust and exposed to other languages through a C ABI.
-Three bindings are provided:
+Four bindings are provided:
 
 | Language | Location | Notes |
 |----------|----------|-------|
@@ -26,6 +26,7 @@ Three bindings are provided:
 | C        | [`c/`](c)           | C header over the shared library. |
 | C++      | [`cpp/`](cpp)       | Header-only RAII wrapper over the C API. |
 | Python   | [`python/`](python) | cffi binding that loads the shared library at run time. |
+| .NET     | [`dotnet/`](dotnet) | P/Invoke binding that loads the shared library at run time. |
 
 ## Coordinate system
 
@@ -51,7 +52,8 @@ enpose-api/
 ├── rust/            Rust crate (the API and the C ABI it exports)
 ├── c/               C header + example
 ├── cpp/             header-only C++ wrapper + example
-└── python/          cffi binding + example
+├── python/          cffi binding + example
+└── dotnet/          P/Invoke binding + example
 ```
 
 ## Using it from C or C++
@@ -87,23 +89,29 @@ cmake -S . -B build
 cmake --build build --target dist   # -> build/enpose_api-<version>-<system>.{tar.gz,zip}
 ```
 
-Unpacked, that package has this layout:
+Unpacked, that package mirrors this repository — one directory per binding,
+each with its own README — so the two read the same way:
 
 ```
 enpose_api-<version>-<system>/
-├── LICENSE              the license, at the top level
+├── LICENSE             the license, at the top level
 ├── README.md           consumer-facing overview of the unpacked package
 ├── include/            the C and C++ headers
 ├── lib/                the shared library + CMake config (lib/cmake/enpose_api)
-├── docs/               generated API docs, one HTML site per binding (c/ cpp/ python/ rust/)
-└── examples/           buildable sources for all four bindings
-    ├── c/  cpp/        example + a CMakeLists.txt that builds via find_package
-    ├── rust/           the full crate, built from source with cargo
-    └── python/         the cffi binding, loaded at run time
+├── docs/               generated API docs, one HTML site per binding (c/ cpp/ python/ dotnet/ rust/)
+├── c/  cpp/            example/ — the example + a CMakeLists.txt that builds
+│                       via find_package (the headers live in include/)
+├── rust/               the full crate, built from source with cargo
+├── python/             the cffi binding + example, loaded at run time
+└── dotnet/             the P/Invoke binding + example, loaded at run time
 ```
 
+Only the SDK proper departs from the repository layout: the headers and the
+shared library sit in `include/` and `lib/`, the conventional locations that
+`find_package` and the Python and .NET loaders look in.
+
 The C and C++ examples build against the prebuilt library with no Rust
-toolchain, the Python binding loads it at run time via cffi, and the full Rust
+toolchain, the Python and .NET bindings load it at run time, and the full Rust
 crate is bundled too for consumers that build from source:
 
 ```cmake
@@ -113,11 +121,11 @@ target_link_libraries(my_app PRIVATE enpose_api::enpose_api_cpp)
 
 `cmake --install build --prefix <dir>` installs just the SDK (the `include/`
 and `lib/` directories — headers, the shared library, and the CMake config);
-the `docs/` and `examples/` are bundled into the package only. Each bundled
-binding builds (or runs) on its own — see the README beside it (or
+`docs/` and the binding directories are bundled into the package only. Each
+bundled binding builds (or runs) on its own — see the README beside it (or
 [`c/README.md`](c/README.md), [`cpp/README.md`](cpp/README.md),
-[`rust/README.md`](rust/README.md), [`python/README.md`](python/README.md) in
-this repo) for the one-line build.
+[`rust/README.md`](rust/README.md), [`python/README.md`](python/README.md),
+[`dotnet/README.md`](dotnet/README.md) in this repo) for the one-line build.
 
 ## Building from source
 
@@ -150,9 +158,57 @@ cargo build --release --manifest-path rust/Cargo.toml   # produces the library
 LD_LIBRARY_PATH=rust/target/release python3 python/example/example.py
 ```
 
+### .NET
+
+The P/Invoke binding needs no native build either — just the shared library,
+pointed at with `ENPOSE_API_LIB` (or reachable on the loader path):
+
+```bash
+cargo build --release --manifest-path rust/Cargo.toml   # produces the library
+ENPOSE_API_LIB=rust/target/release/libenpose_api.so dotnet run --project dotnet/example
+```
+
 See [`rust/README.md`](rust/README.md), [`c/README.md`](c/README.md),
-[`cpp/README.md`](cpp/README.md), and [`python/README.md`](python/README.md) for
-per-binding details.
+[`cpp/README.md`](cpp/README.md), [`python/README.md`](python/README.md), and
+[`dotnet/README.md`](dotnet/README.md) for per-binding details.
+
+## API documentation
+
+Each binding's API reference is generated from its own sources by its own
+standard tool, into `docs/<binding>/`:
+
+| Binding  | Generator      | Install with                    |
+|----------|----------------|---------------------------------|
+| C, C++   | Doxygen        | your package manager            |
+| Python   | Sphinx         | `pip install sphinx furo`       |
+| .NET     | docfx          | `dotnet tool install -g docfx`  |
+| Rust     | rustdoc        | ships with the Rust toolchain   |
+
+Build them all with the `docs` target:
+
+```bash
+cmake -S . -B build-docs -DENPOSE_BUILD_EXAMPLES=OFF
+cmake --build build-docs --target docs
+```
+
+Then open `docs/<binding>/index.html`. (`ENPOSE_BUILD_EXAMPLES=OFF` because the
+docs need no compiled artifacts; any build tree will do, so an existing `build/`
+works just as well. To start from scratch, delete `docs/` and the build tree.)
+
+Generation is **best-effort**: each binding is generated independently, and one
+whose generator is missing — or that cannot run in this environment — is skipped
+with a note rather than failing the others. The run closes with a summary
+listing what was produced, what was skipped for want of a generator, and what
+failed (with a `build-docs/docs-<binding>.log` to read). Configure with
+`-DENPOSE_DOCS_STRICT=ON` to turn an incomplete run into an error instead, for
+CI or a release build where every binding is expected.
+
+On Windows, every generator must come from the same toolchain as CMake — all
+MSYS2/MinGW, or all native. A tool from the other chain cannot consume the paths
+CMake hands it and is reported as failed. Note also that docfx shells out to
+`dotnet`, so the .NET SDK has to be on `PATH` of the shell you build from.
+
+The `dist` package runs this same generation and bundles whatever it produced.
 
 ## License
 

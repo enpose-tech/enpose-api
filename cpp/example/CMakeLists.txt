@@ -26,8 +26,9 @@ if(NOT TARGET enpose_api::enpose_api_cpp)
         set(ENPOSE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
         add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../.." enpose_api_root)
     else()
-        # In the unpacked SDK this example lives at examples/cpp, with the CMake
-        # package config two levels up under lib/cmake/enpose_api. Add the SDK
+        # In the unpacked SDK this example lives at cpp/example, as in the
+        # source tree, with the CMake package config two levels up under
+        # lib/cmake/enpose_api. Add the SDK
         # root to the prefix path so it is found with no -DCMAKE_PREFIX_PATH.
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../lib/cmake/enpose_api")
             list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../..")

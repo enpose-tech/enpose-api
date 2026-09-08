@@ -14,6 +14,17 @@ if(NOT TARGET enpose_api::enpose_api)
     set_target_properties(enpose_api::enpose_api PROPERTIES
         IMPORTED_LOCATION "${_enpose_libdir}/@ENPOSE_LIB_NAME@"
         INTERFACE_INCLUDE_DIRECTORIES "${_enpose_includedir}")
+
+    # A Windows shared library is linked against its import library, not the
+    # DLL, so the imported target needs IMPORTED_IMPLIB there (without it CMake
+    # errors out at generate time). The name is empty on platforms that link the
+    # shared object directly (Linux/macOS), where this is skipped.
+    set(_enpose_implib_name "@ENPOSE_IMPLIB_NAME@")
+    if(_enpose_implib_name)
+        set_and_check(_enpose_implib "${_enpose_libdir}/${_enpose_implib_name}")
+        set_target_properties(enpose_api::enpose_api PROPERTIES
+            IMPORTED_IMPLIB "${_enpose_implib}")
+    endif()
 endif()
 
 if(NOT TARGET enpose_api::enpose_api_cpp)

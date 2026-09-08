@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The bundled .NET example. Builds against the binding project next to it,
+    both in a source checkout and in the unpacked SDK (examples/dotnet); run it
+    with "dotnet run" from this directory.
+
+    RollForward lets the sample run on a newer installed runtime when the
+    exact .NET 8 runtime is not present.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <AssemblyName>enpose_example_dotnet</AssemblyName>
+    <RootNamespace>EnposeExample</RootNamespace>
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Enpose.Api/Enpose.Api.csproj" />
+  </ItemGroup>
+
+</Project>

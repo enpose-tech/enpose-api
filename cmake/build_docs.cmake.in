@@ -16,8 +16,10 @@ set(_docsrc_dir "@ENPOSE_DOCSRC_DIR@")
 set(_bin_dir    "@CMAKE_CURRENT_BINARY_DIR@")
 set(_cmake      "@CMAKE_COMMAND@")
 set(_doxygen    "@DOXYGEN_EXECUTABLE@")
+set(_docfx      "@DOCFX_EXECUTABLE@")
 set(_cargo      "@CARGO_EXECUTABLE@")
 set(_rust_dir   "@ENPOSE_RUST_DIR@")
+set(_strict     "@ENPOSE_DOCS_STRICT@")
 
 set(_sphinx        "@SPHINX_BUILD_EXECUTABLE@")
 set(_sphinx_src      "@ENPOSE_DOCSRC_DIR@/python")
@@ -25,8 +27,14 @@ set(_sphinx_out      "@ENPOSE_DOCS_DIR@/python")
 set(_sphinx_doctrees "@CMAKE_CURRENT_BINARY_DIR@/sphinx-doctrees")
 
 # Run a generator. On failure, print a [skip] note and keep going (never fatal);
-# record success in _doc_<label>_ok for callers that need follow-up steps.
+# record success in _doc_<label>_ok for callers that need follow-up steps, and
+# the outcome in _doc_status_<label> ("ok" / "failed") for the closing summary.
 # Usage: run_doc(<label> [WORKDIR <dir>] COMMAND <argv...>)
+#
+# The per-language log docs-<label>.log is written on failure and REMOVED on
+# success, so its presence always describes the latest run: docs/<lang>/ can hold
+# output from an earlier run (or an earlier toolchain), so it is no evidence that
+# this run succeeded.
 #
 # The generator's own stdout/stderr is captured rather than inherited. This is
 # deliberate: when this script runs under MSBuild (the Visual Studio generator
@@ -45,7 +53,9 @@ function(run_doc label)
         OUTPUT_VARIABLE _out
         ERROR_VARIABLE _err)
     if(_rc EQUAL 0)
+        file(REMOVE "${_bin_dir}/docs-${label}.log")
         set(_doc_${label}_ok TRUE PARENT_SCOPE)
+        set(_doc_status_${label} "ok" PARENT_SCOPE)
     else()
         # _rc is a number when the process ran and returned non-zero, or a string
         # (e.g. "No such file or directory") when it could not be launched.
@@ -58,7 +68,20 @@ function(run_doc label)
         file(WRITE "${_log}" "${_out}${_err}")
         message(STATUS "docs: [skip] ${label} - ${_why}; see ${_log}")
         set(_doc_${label}_ok FALSE PARENT_SCOPE)
+        set(_doc_status_${label} "failed" PARENT_SCOPE)
+        set(_doc_log_${label} "${_log}" PARENT_SCOPE)
     endif()
+endfunction()
+
+# Left-pad a label to `width` characters, for the aligned summary below.
+function(pad_label out text width)
+    set(_s "${text}")
+    string(LENGTH "${_s}" _len)
+    while(_len LESS ${width})
+        string(APPEND _s " ")
+        math(EXPR _len "${_len} + 1")
+    endwhile()
+    set(${out} "${_s}" PARENT_SCOPE)
 endfunction()
 
 # --- Python: Sphinx ---
@@ -69,6 +92,7 @@ if(_sphinx)
             -d "${_sphinx_doctrees}" "${_sphinx_src}" "${_sphinx_out}")
 else()
     message(STATUS "docs: [skip] python - sphinx-build not found")
+    set(_doc_status_python "skipped")
 endif()
 
 # --- C and C++: Doxygen (one configured Doxyfile per language) ---
@@ -84,6 +108,23 @@ if(_doxygen)
     run_doc(cpp COMMAND "${_doxygen}" "${_bin_dir}/Doxyfile.cpp")
 else()
     message(STATUS "docs: [skip] c/cpp - doxygen not found")
+    set(_doc_status_c "skipped")
+    set(_doc_status_cpp "skipped")
+endif()
+
+# --- .NET: docfx ---
+# The configured docfx.json sits in the build tree next to the staged landing
+# page (docfx-content/) and theme (docfx-template/), which is also where the
+# extracted API metadata lands (docfx-api/). Running docfx on it does both steps
+# (metadata + build) and writes the site to docs/dotnet. It builds the binding
+# project on the way, so a missing .NET SDK skips this language like any other.
+if(_docfx)
+    message(STATUS "docs: dotnet -> docs/dotnet (docfx)")
+    file(MAKE_DIRECTORY "${_docs_dir}/dotnet")
+    run_doc(dotnet WORKDIR "${_bin_dir}" COMMAND "${_docfx}" "${_bin_dir}/docfx.json")
+else()
+    message(STATUS "docs: [skip] dotnet - docfx not found")
+    set(_doc_status_dotnet "skipped")
 endif()
 
 # --- Rust: rustdoc (cargo doc) ---
@@ -108,4 +149,60 @@ if(_cargo)
     endif()
 else()
     message(STATUS "docs: [skip] rust - cargo not found")
+    set(_doc_status_rust "skipped")
+endif()
+
+# --- Summary ---------------------------------------------------------------
+# One account of the whole run, distinguishing a binding that was skipped for
+# want of a generator from one whose generator ran and failed. This is taken
+# from the runs themselves rather than by inspecting docs/ afterwards, which can
+# still hold output from an earlier run or a different toolchain.
+set(_langs c      cpp     python       dotnet rust)
+set(_tools doxygen doxygen sphinx-build docfx  cargo)
+set(_failed "")
+set(_skipped "")
+
+list(LENGTH _langs _lang_count)
+math(EXPR _last "${_lang_count} - 1")
+
+message(STATUS "")
+message(STATUS "Documentation:")
+foreach(_i RANGE ${_last})
+    list(GET _langs ${_i} _lang)
+    list(GET _tools ${_i} _tool)
+    pad_label(_label "${_lang}" 6)
+    set(_status "${_doc_status_${_lang}}")
+    if("${_status}" STREQUAL "ok")
+        message(STATUS "  ${_label} ${_docs_dir}/${_lang}/index.html")
+    elseif("${_status}" STREQUAL "failed")
+        message(STATUS "  ${_label} FAILED (${_tool}) - see ${_doc_log_${_lang}}")
+        list(APPEND _failed "${_lang}")
+    else()
+        message(STATUS "  ${_label} skipped - no ${_tool}")
+        list(APPEND _skipped "${_lang}")
+    endif()
+endforeach()
+
+if(_skipped)
+    message(STATUS "  (install the generator to add a skipped binding: doxygen for"
+                   " c/cpp, sphinx-build for python, docfx for dotnet, cargo for rust)")
+endif()
+if(_failed)
+    message(STATUS "  (a generator that is found but fails is usually from a different"
+                   " toolchain than cmake, or is missing a dependency of its own)")
+endif()
+
+# Missing documentation is not an error by default: the full toolchain is rarely
+# present on any one machine, and `dist` deliberately packages whatever was
+# produced. ENPOSE_DOCS_STRICT=ON turns an incomplete run into a failure, for CI
+# and release builds where every binding is expected.
+if(_strict AND (_failed OR _skipped))
+    set(_msg "documentation is incomplete (ENPOSE_DOCS_STRICT=ON)")
+    if(_failed)
+        string(APPEND _msg "\n  failed:  ${_failed}")
+    endif()
+    if(_skipped)
+        string(APPEND _msg "\n  skipped: ${_skipped}")
+    endif()
+    message(FATAL_ERROR "${_msg}")
 endif()

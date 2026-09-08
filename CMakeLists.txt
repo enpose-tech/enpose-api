@@ -34,6 +34,7 @@ else()
 endif()
 
 option(ENPOSE_BUILD_EXAMPLES "Build the C and C++ examples" ${_enpose_is_top_level})
+option(ENPOSE_DOCS_STRICT "Fail the `docs` target if any binding's documentation is missing" OFF)
 set(ENPOSE_CARGO_PROFILE "release" CACHE STRING "Cargo build profile: release or debug")
 
 # ---------------------------------------------------------------------------
@@ -83,6 +84,14 @@ else()
     set(ENPOSE_LIB_NAME "libenpose_api.so")
 endif()
 set(ENPOSE_LIB "${CARGO_OUT_DIR}/${ENPOSE_LIB_NAME}")
+
+# The import library's bare filename. The installed package config needs it to
+# point IMPORTED_IMPLIB at the copy in the SDK's lib/; empty where there is no
+# import library (Linux/macOS).
+set(ENPOSE_IMPLIB_NAME "")
+if(ENPOSE_IMPLIB)
+    get_filename_component(ENPOSE_IMPLIB_NAME "${ENPOSE_IMPLIB}" NAME)
+endif()
 
 add_custom_command(
     OUTPUT "${ENPOSE_LIB}"
@@ -189,16 +198,25 @@ install(FILES
 #   * LICENSE   -- at the package top level.
 #   * README.md -- consumer-facing overview of the unpacked package (its source
 #                  lives in docsrc/package/README.md), at the top level.
-#   * docs/     -- the generated API documentation for all four bindings, one
-#                  HTML site per subfolder (c, cpp, python, rust).
-#   * examples/ -- buildable sources for all four bindings, one subdir each:
-#       - c, cpp:  example source + a CMakeLists.txt that configures against the
-#                  installed SDK via find_package, so they build with no Rust
-#                  toolchain (see c/example/CMakeLists.txt).
+#   * docs/     -- the generated API documentation for all five bindings, one
+#                  HTML site per subfolder (c, cpp, python, dotnet, rust).
+#   * c/ cpp/ python/ dotnet/ rust/ -- one top-level directory per binding,
+#     laid out as in this repository so the package and the source tree read the
+#     same way. Each carries that binding's README.md plus its sources:
+#       - c, cpp:  example/ -- example source + a CMakeLists.txt that configures
+#                  against the installed SDK via find_package, so it builds with
+#                  no Rust toolchain (see c/example/CMakeLists.txt). The headers
+#                  themselves are part of the SDK, in include/.
 #       - rust:    the full crate (the native binding and the source of truth
 #                  for the C ABI), built from source with `cargo`.
 #       - python:  a cffi binding that loads the prebuilt shared library at run
-#                  time (no compiler needed); just the package and an example.
+#                  time (no compiler needed); the package and an example.
+#       - dotnet:  a P/Invoke binding that loads the prebuilt shared library at
+#                  run time; the binding project plus an example project.
+#
+# Only the SDK itself (include/, lib/) departs from the repository layout: those
+# are the GNUInstallDirs locations that `cmake --install` and find_package
+# require, and that the Python and .NET loaders search for at run time.
 # ---------------------------------------------------------------------------
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
     DESTINATION "."
@@ -230,14 +248,14 @@ install(CODE "
 
 # Install each binding's generated docs, but only if it was actually produced.
 # The `docs` target above skips any language whose generator is missing
-# (Doxygen for c/cpp, sphinx-build for python), so the corresponding
+# (Doxygen for c/cpp, sphinx-build for python, docfx for dotnet), so the corresponding
 # docs/<lang> directory may not exist. A plain install(DIRECTORY) on a missing
 # source is fatal, which would make the package unbuildable without the full
 # doc toolchain. Copy at install time and skip whatever was not generated, so
 # the package carries whatever docs are available. ${CMAKE_CURRENT_SOURCE_DIR}
 # is baked in at configure time; the per-language checks run at install time.
 install(CODE "
-    foreach(_lang c cpp python rust)
+    foreach(_lang c cpp python dotnet rust)
         set(_docsrc \"${CMAKE_CURRENT_SOURCE_DIR}/docs/\${_lang}\")
         file(GLOB _doc_contents \"\${_docsrc}/*\")
         if(IS_DIRECTORY \"\${_docsrc}\" AND _doc_contents)
@@ -250,46 +268,78 @@ install(CODE "
     endforeach()"
     COMPONENT extras EXCLUDE_FROM_ALL)
 
+# Each binding's README, at the root of its directory -- the same per-binding
+# guide the repository carries, so the unpacked package explains itself without
+# a trip to GitHub.
+foreach(_lang c cpp python dotnet rust)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/${_lang}/README.md"
+        DESTINATION "${_lang}"
+        COMPONENT extras EXCLUDE_FROM_ALL)
+endforeach()
+
 # C and C++: example source + a standalone CMakeLists that builds against the
-# installed SDK via find_package.
+# installed SDK via find_package. The example keeps its <lang>/example/ position
+# from the repository, which is also what its CMakeLists assumes: the SDK's
+# CMake config sits two levels up, in lib/cmake/enpose_api.
 install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/c/example/example.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/c/example/CMakeLists.txt"
-    DESTINATION "examples/c"
+    DESTINATION "c/example"
     COMPONENT extras EXCLUDE_FROM_ALL)
 install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/example/example.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/example/CMakeLists.txt"
-    DESTINATION "examples/cpp"
+    DESTINATION "cpp/example"
     COMPONENT extras EXCLUDE_FROM_ALL)
 
 # Rust: the full crate -- manifest, library sources (incl. the *_tests.rs files
 # referenced via #[path]), and the example. Cargo.lock is intentionally omitted
 # (it is untracked and absent on fresh checkouts; cargo regenerates it).
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/rust/Cargo.toml"
-    DESTINATION "examples/rust"
+    DESTINATION "rust"
     COMPONENT extras EXCLUDE_FROM_ALL)
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rust/src"
-    DESTINATION "examples/rust"
+    DESTINATION "rust"
     COMPONENT extras EXCLUDE_FROM_ALL)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/rust/example/example.rs"
-    DESTINATION "examples/rust/example"
+    DESTINATION "rust/example"
     COMPONENT extras EXCLUDE_FROM_ALL)
 
-# Python: the cffi binding package and its example.
+# Python: the cffi binding package and its example. The example adds its parent
+# (python/) to sys.path, so `python3 python/example/example.py` imports the
+# bundled package; the package itself finds lib/ by walking up its ancestors.
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/python/enpose_api/__init__.py"
-    DESTINATION "examples/python/enpose_api"
+    DESTINATION "python/enpose_api"
     COMPONENT extras EXCLUDE_FROM_ALL)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/python/example/example.py"
-    DESTINATION "examples/python/example"
+    DESTINATION "python/example"
+    COMPONENT extras EXCLUDE_FROM_ALL)
+
+# .NET: the P/Invoke binding project and the example project that references it.
+# The example's relative ProjectReference (../Enpose.Api) is preserved by this
+# layout, so `dotnet run` works straight from the unpacked package.
+# bin/ and obj/ are excluded explicitly: obj/ holds generated *.cs files that
+# would otherwise match the source pattern.
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/Enpose.Api"
+    DESTINATION "dotnet"
+    COMPONENT extras EXCLUDE_FROM_ALL
+    FILES_MATCHING
+        PATTERN "*.cs"
+        PATTERN "*.csproj"
+        PATTERN "bin" EXCLUDE
+        PATTERN "obj" EXCLUDE)
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/example/Example.cs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/example/Example.csproj"
+    DESTINATION "dotnet/example"
     COMPONENT extras EXCLUDE_FROM_ALL)
 
 # ---------------------------------------------------------------------------
 # Distributable binary package (cmake --build build --target dist).
 #
 # A single archive bundling both components, so it carries the SDK (headers,
-# library, CMake config) plus the extras: LICENSE at the top level, docs/, and
-# examples/.
+# library, CMake config) plus the extras: LICENSE and README.md at the top
+# level, docs/, and the per-binding directories.
 # ---------------------------------------------------------------------------
 if(_enpose_is_top_level)
     set(CPACK_PACKAGE_NAME "enpose_api")
@@ -358,10 +408,18 @@ endif()
 # webgui/src/my_ui.rs):
 #   * python -> Sphinx  (furo theme + docsrc/python/_static/enpose.css)
 #   * c, cpp -> Doxygen (HTML_EXTRA_STYLESHEET = docsrc/doxygen/enpose-doxygen.css)
+#   * dotnet -> docfx   (modern template + docsrc/dotnet/template/public/main.css)
 #   * rust   -> rustdoc (cargo doc, --extend-css docsrc/rust/enpose-rustdoc.css)
 #
-# Run with:  cmake --build <build-dir> --target docs
-# Each tool is located if present; a missing one skips that language with a note.
+# Run with:
+#   cmake -S . -B build-docs -DENPOSE_BUILD_EXAMPLES=OFF
+#   cmake --build build-docs --target docs
+#
+# Each tool is located if present; a missing one skips that language with a note,
+# and the run closes with a summary of what was produced, skipped and failed.
+# Missing docs are not an error (the toolchain is rarely complete on one
+# machine); configure with -DENPOSE_DOCS_STRICT=ON to make an incomplete run
+# fail, e.g. in CI. That applies to the documentation step of `dist` too.
 # ---------------------------------------------------------------------------
 if(_enpose_is_top_level)
     set(ENPOSE_DOCS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/docs")
@@ -372,6 +430,9 @@ if(_enpose_is_top_level)
     # it before falling back. Harmless on Linux (no .exe exists).
     find_program(SPHINX_BUILD_EXECUTABLE NAMES sphinx-build.exe sphinx-build)
     find_program(DOXYGEN_EXECUTABLE doxygen)
+    # docfx is a .NET global tool; it installs into ~/.dotnet/tools, which is not
+    # always on PATH, so look there too.
+    find_program(DOCFX_EXECUTABLE NAMES docfx HINTS "$ENV{USERPROFILE}/.dotnet/tools" "$ENV{HOME}/.dotnet/tools")
     # CARGO_EXECUTABLE and ENPOSE_RUST_DIR are set near the top of this file.
 
     # All doc generators are expected to come from the same toolchain as this
@@ -403,6 +464,23 @@ if(_enpose_is_top_level)
         set(DOXY_OPTIMIZE_C "NO")
         configure_file("${ENPOSE_DOCSRC_DIR}/doxygen/Doxyfile.in"
                        "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile.cpp" @ONLY)
+    endif()
+
+    # .NET: docfx resolves input paths *and* the links between pages relative to
+    # its config file, so the whole doc source tree is staged next to the
+    # generated docfx.json in the build tree: docfx-src/ takes the landing page
+    # here and the extracted API metadata (docfx-src/api/) when docfx runs, and
+    # docfx-template/ takes the Enpose theme.
+    if(DOCFX_EXECUTABLE)
+        set(ENPOSE_DOTNET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dotnet")
+        configure_file("${ENPOSE_DOCSRC_DIR}/dotnet/index.md"
+                       "${CMAKE_CURRENT_BINARY_DIR}/docfx-src/index.md" COPYONLY)
+        configure_file("${ENPOSE_DOCSRC_DIR}/dotnet/toc.yml"
+                       "${CMAKE_CURRENT_BINARY_DIR}/docfx-src/toc.yml" COPYONLY)
+        configure_file("${ENPOSE_DOCSRC_DIR}/dotnet/template/public/main.css"
+                       "${CMAKE_CURRENT_BINARY_DIR}/docfx-template/public/main.css" COPYONLY)
+        configure_file("${ENPOSE_DOCSRC_DIR}/dotnet/docfx.json.in"
+                       "${CMAKE_CURRENT_BINARY_DIR}/docfx.json" @ONLY)
     endif()
 
     # All per-language doc generation lives in build_docs.cmake, run via a single

@@ -19,8 +19,9 @@ target_link_libraries(my_app PRIVATE enpose_api::enpose_api)
 
 ## Building the bundled example
 
-`example.c` is a complete discover-and-stream program. From the SDK's
-`examples/c` directory:
+`example.c` is a complete discover-and-stream program. From the `c/example`
+directory (of the unpacked SDK or of a source checkout — the layout is the
+same):
 
 ```bash
 cmake -S . -B build

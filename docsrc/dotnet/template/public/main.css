@@ -1,0 +1,99 @@
+/* Enpose docfx theme — the `modern` template's designated override sheet
+ * (public/main.css), loaded after docfx.min.css.
+ *
+ * The template is Bootstrap 5.3 based and ships a light/dark/auto switcher; the
+ * overrides below are applied to every one of those states, so the docs always
+ * render in the Enpose / webgui dark palette like the other bindings' sites.
+ * Palette mirrors webgui/src/my_ui.rs — keep in sync:
+ *   PRIMARY_COLOR        #00ccff   PRIMARY_COLOR_DARK   #007f9f
+ *   SECONDARY_COLOR      #f19640   side-panel / elevated #00141a
+ */
+:root,
+:root[data-bs-theme="light"],
+:root[data-bs-theme="dark"] {
+    color-scheme: dark;
+
+    /* Page + body. */
+    --bs-body-bg: #1b1b1b;
+    --bs-body-bg-rgb: 27, 27, 27;
+    --bs-body-color: #ffffff;
+    --bs-body-color-rgb: 255, 255, 255;
+    --bs-emphasis-color: #ffffff;
+    --bs-emphasis-color-rgb: 255, 255, 255;
+    --bs-heading-color: #ffffff;
+
+    /* Elevated surfaces: navbar, sidebar, tables, code blocks. */
+    --bs-secondary-bg: #00141a;
+    --bs-secondary-bg-rgb: 0, 20, 26;
+    --bs-tertiary-bg: #00141a;
+    --bs-tertiary-bg-rgb: 0, 20, 26;
+    --bs-secondary-color: #a9b3b6;
+    --bs-tertiary-color: #a9b3b6;
+
+    /* Rules and borders. */
+    --bs-border-color: #11343d;
+    --bs-border-color-translucent: #11343d;
+
+    /* Links: primary by default, secondary (orange) on hover, as in the webgui. */
+    --bs-link-color: #00ccff;
+    --bs-link-color-rgb: 0, 204, 255;
+    --bs-link-hover-color: #f19640;
+    --bs-link-hover-color-rgb: 241, 150, 64;
+
+    /* Accents: buttons, badges, the active TOC entry, search highlights. */
+    --bs-primary: #00ccff;
+    --bs-primary-rgb: 0, 204, 255;
+    --bs-primary-bg-subtle: #00141a;
+    --bs-primary-border-subtle: #11343d;
+    --bs-primary-text-emphasis: #00ccff;
+    --bs-highlight-bg: #11343d;
+    --bs-code-color: #f19640;
+}
+
+/* The top bar and the table of contents sit on the elevated background, as in
+ * the Doxygen and rustdoc themes. */
+.navbar,
+.toc-offcanvas {
+    background-color: var(--bs-secondary-bg);
+}
+
+/* Syntax highlighting: primary for keywords, secondary for literals, muted for
+ * comments — matching the Doxygen and rustdoc themes. The `:root` prefix ties
+ * the specificity of the template's own [data-bs-theme=dark] rules, which this
+ * sheet then wins on load order. */
+:root .hljs {
+    background: #00141a;
+    color: #ffffff;
+}
+:root .hljs-keyword,
+:root .hljs-built_in,
+:root .hljs-type,
+:root .hljs-name,
+:root .hljs-tag,
+:root .hljs-selector-tag,
+:root .hljs-symbol {
+    color: #00ccff;
+}
+:root .hljs-string,
+:root .hljs-number,
+:root .hljs-literal,
+:root .hljs-meta,
+:root .hljs-attr,
+:root .hljs-attribute,
+:root .hljs-template-variable,
+:root .hljs-addition {
+    color: #f19640;
+}
+:root .hljs-comment,
+:root .hljs-quote,
+:root .hljs-doctag {
+    color: #a9b3b6;
+    font-style: italic;
+}
+:root .hljs-title,
+:root .hljs-class,
+:root .hljs-function,
+:root .hljs-params,
+:root .hljs-variable {
+    color: #ffffff;
+}

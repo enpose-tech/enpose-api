@@ -103,6 +103,78 @@ fn connect_receive_free_round_trip() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// C ABI layout.
+//
+// These assertions pin the layout that every non-Rust binding hand-mirrors
+// (see the table in this module's documentation): reordering or retyping a
+// field here fails the build instead of silently breaking the C, C++, Python
+// and .NET bindings at run time. Each of those mirrors asserts the same
+// numbers on its own side.
+//
+// 64-bit targets only — the ones the SDK ships. A 32-bit x86 ABI aligns `f64`
+// to 4 and legitimately produces a different, smaller layout.
+// ---------------------------------------------------------------------------
+
+/// Byte offset and width of one field, as `(offset, width)`.
+///
+/// `std::mem::offset_of!` would give the offset directly, but it is newer
+/// (Rust 1.77) than this crate's MSRV. The width matters as much as the
+/// offset: widening a field can consume the padding beside it and leave every
+/// offset and the total size unchanged (`u16` -> `u32` for `marker_id`, say),
+/// while the mirrors then disagree about how many of those bytes carry the
+/// value.
+#[cfg(target_pointer_width = "64")]
+fn field_at<T, F>(value: &T, field: &F) -> (usize, usize) {
+    let offset = (field as *const F as usize) - (value as *const T as usize);
+    (offset, std::mem::size_of_val(field))
+}
+
+#[cfg(target_pointer_width = "64")]
+#[test]
+fn marker_pose_layout_matches_c_abi() {
+    use std::mem::{align_of, size_of};
+
+    let p = sample_pose(1);
+    assert_eq!(size_of::<MarkerPose>(), 136, "sizeof(EnposeMarkerPose)");
+    assert_eq!(align_of::<MarkerPose>(), 8, "alignof(EnposeMarkerPose)");
+    assert_eq!(field_at(&p, &p.timestamp), (0, 8), "timestamp");
+    assert_eq!(field_at(&p, &p.marker_id), (8, 2), "marker_id");
+    assert_eq!(field_at(&p, &p.x), (16, 8), "x");
+    assert_eq!(field_at(&p, &p.y), (24, 8), "y");
+    assert_eq!(field_at(&p, &p.z), (32, 8), "z");
+    assert_eq!(field_at(&p, &p.rotation), (40, 72), "rotation");
+    assert_eq!(field_at(&p, &p.position_rmse), (112, 8), "position_rmse");
+    assert_eq!(field_at(&p, &p.rotation_rmse), (120, 8), "rotation_rmse");
+    assert_eq!(field_at(&p, &p.sensors), (128, 1), "sensors");
+    assert_eq!(field_at(&p, &p.observed_emitters), (129, 1), "observed_emitters");
+}
+
+#[cfg(target_pointer_width = "64")]
+#[test]
+fn device_info_layout_matches_c_abi() {
+    use std::mem::{align_of, size_of};
+
+    let d = EnposeDeviceInfo { ip: [0; IP_BUF_LEN], serial: 0, compatible: false };
+    assert_eq!(size_of::<EnposeDeviceInfo>(), 56, "sizeof(EnposeDeviceInfo)");
+    assert_eq!(align_of::<EnposeDeviceInfo>(), 4, "alignof(EnposeDeviceInfo)");
+    assert_eq!(field_at(&d, &d.ip), (0, 46), "ip");
+    assert_eq!(field_at(&d, &d.serial), (48, 4), "serial");
+    assert_eq!(field_at(&d, &d.compatible), (52, 1), "compatible");
+}
+
+#[test]
+fn status_codes_match_c_abi() {
+    // A #[repr(C)] enum is a C `int`, and `bool` crosses the boundary as one
+    // byte — both assumed by every mirror of this ABI.
+    assert_eq!(std::mem::size_of::<EnposeStatus>(), std::mem::size_of::<std::ffi::c_int>());
+    assert_eq!(std::mem::size_of::<bool>(), 1);
+    assert_eq!(EnposeStatus::Ok as i32, 0);
+    assert_eq!(EnposeStatus::InvalidArg as i32, -1);
+    assert_eq!(EnposeStatus::Io as i32, -2);
+    assert_eq!(EnposeStatus::Panic as i32, -3);
+}
+
 #[test]
 fn device_to_c_writes_null_terminated_ip() {
     let info = DeviceInfo {

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The .NET binding for the Enpose API: a managed P/Invoke wrapper over the
+    `enpose_api` C ABI. It loads the prebuilt shared library at run time, so
+    there is no native build step and no Rust toolchain involved.
+
+    Multi-targeted on purpose:
+      * net8.0: modern .NET; adds the custom native-library search
+        (ENPOSE_API_LIB and the SDK's lib/ directory).
+      * netstandard2.0: .NET Framework 4.6.1+, Mono and Unity; the library is
+        resolved by the plain OS loader path there.
+  -->
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Enpose.Api</AssemblyName>
+    <RootNamespace>Enpose</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>Enpose.Api</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Enpose</Authors>
+    <Company>Enpose</Company>
+    <Description>Client API for the Enpose 6-DoF optical tracking systems: discover devices on the local network and stream live marker poses.</Description>
+    <PackageProjectUrl>https://enpose.tech</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>enpose;tracking;6dof;rtls;motion-capture</PackageTags>
+  </PropertyGroup>
+
+</Project>

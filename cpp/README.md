@@ -39,8 +39,9 @@ target_link_libraries(my_app PRIVATE enpose_api::enpose_api_cpp)
 
 ## Building the bundled example
 
-`example.cpp` is a complete discover-and-stream program. From the SDK's
-`examples/cpp` directory:
+`example.cpp` is a complete discover-and-stream program. From the `cpp/example`
+directory (of the unpacked SDK or of a source checkout — the layout is the
+same):
 
 ```bash
 cmake -S . -B build

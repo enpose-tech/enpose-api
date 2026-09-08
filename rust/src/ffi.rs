@@ -3,8 +3,35 @@
 //! This is a thin wrapper over the idiomatic Rust API ([`DeviceDiscovery`],
 //! [`PoseStream`], [`MarkerPose`]); Rust applications should use those types
 //! directly. The functions here exist so C (and other languages with a C
-//! FFI) can drive the same discover-then-stream workflow. The matching C
-//! declarations live in the hand-written `c/enpose_api.h`.
+//! FFI) can drive the same discover-then-stream workflow.
+//!
+//! # Mirrors of this ABI
+//!
+//! This module defines the ABI; every other binding restates it by hand and
+//! must be updated in the same change:
+//!
+//! * `c/include/enpose_api.h` — the C declarations. The C++ wrapper
+//!   (`cpp/include/enpose_api.hpp`) includes that header and aliases its
+//!   types, so it follows automatically.
+//! * `python/enpose_api/__init__.py` — the cffi `_CDEF` block.
+//! * `dotnet/Enpose.Api/NativeMethods.cs` — the P/Invoke signatures and the
+//!   `[StructLayout]` structs.
+//!
+//! Nothing enforces that mechanically across languages, so each mirror
+//! asserts the layout below instead: a reordered or retyped field fails
+//! `cargo test` here, fails to compile in C and C++, and raises on load in
+//! Python and .NET, rather than silently misreading every pose.
+//!
+//! On the 64-bit targets the SDK ships, that layout is:
+//!
+//! | Type | Size | Align | Field offsets |
+//! |------|------|-------|---------------|
+//! | [`EnposeDeviceInfo`] | 56 | 4 | `ip` 0 (46 bytes), `serial` 48, `compatible` 52 |
+//! | [`MarkerPose`] | 136 | 8 | `timestamp` 0, `marker_id` 8, `x` 16, `y` 24, `z` 32, `rotation` 40 (72 bytes), `position_rmse` 112, `rotation_rmse` 120, `sensors` 128, `observed_emitters` 129 |
+//!
+//! [`EnposeStatus`] is a C `int`; a 32-bit target aligns `f64` to 4 and gives
+//! [`MarkerPose`] a different, equally valid layout, so the checks are
+//! 64-bit-only.
 //!
 //! Conventions:
 //!

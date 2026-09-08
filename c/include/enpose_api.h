@@ -3,8 +3,10 @@
  * @brief Enpose API — C interface for the 6-DoF tracking system.
  *
  * This header is hand-maintained and must be kept in sync with the Rust FFI
- * layer in `rust/src/ffi.rs`. Link against the `enpose_api` shared library
- * (built with `cargo build --release`).
+ * layer in `rust/src/ffi.rs`, which defines the ABI and lists every binding
+ * that mirrors it. The struct layouts are asserted at the bottom of this file,
+ * so a mismatch is a compile error rather than a run-time misread. Link
+ * against the `enpose_api` shared library (built with `cargo build --release`).
  *
  * Workflow: discover devices on the local network with enpose_discover(),
  * open a pose stream to one of them with enpose_pose_stream_connect(), poll it
@@ -133,3 +135,66 @@ void enpose_pose_stream_free(EnposePoseStream *stream);
 } /* extern "C" */
 #endif
 /** @} */ /* enpose_c_api */
+
+/** @cond */
+/*
+ * Compile-time check that these declarations still describe the same memory
+ * layout as the Rust definitions they mirror (rust/src/ffi.rs carries the
+ * layout table and the list of mirrors). A field reordered or retyped on
+ * either side breaks the build here — in every C and C++ translation unit that
+ * includes this header, the C++ wrapper included — instead of silently
+ * misreading every device and pose at run time.
+ *
+ * Field widths are checked alongside the offsets: widening a field can leave
+ * every offset and the total size untouched by consuming the padding next to
+ * it (uint16_t -> uint32_t for marker_id, say), while the two sides then
+ * disagree about how many of those bytes carry the value.
+ *
+ * 64-bit targets only: a 32-bit x86 ABI aligns double to 4 and produces a
+ * different, equally valid layout. Skipped as well on pre-C11 compilers, which
+ * have no static assertion to use.
+ */
+#if defined(UINTPTR_MAX) && UINTPTR_MAX == 0xFFFFFFFFFFFFFFFFULL
+
+#if defined(__cplusplus)
+#define ENPOSE_STATIC_ASSERT(cond, msg) static_assert(cond, msg)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define ENPOSE_STATIC_ASSERT(cond, msg) _Static_assert(cond, msg)
+#else
+/* Pre-C11: no static assertion to use. Expand to a harmless repeated
+ * declaration rather than to nothing, which would leave a stray semicolon at
+ * file scope. */
+#define ENPOSE_STATIC_ASSERT(cond, msg) extern int enpose_static_assert_unavailable
+#endif
+
+ENPOSE_STATIC_ASSERT(sizeof(EnposeStatus) == sizeof(int), "EnposeStatus is a C int");
+ENPOSE_STATIC_ASSERT(sizeof(bool) == 1, "bool crosses the ABI as one byte");
+
+/* Offset and width of one field, in one line. */
+#define ENPOSE_ASSERT_FIELD(type, field, off, width)                       \
+    ENPOSE_STATIC_ASSERT(offsetof(type, field) == (off), #type "." #field " offset"); \
+    ENPOSE_STATIC_ASSERT(sizeof(((type *)0)->field) == (width), #type "." #field " width")
+
+ENPOSE_STATIC_ASSERT(sizeof(EnposeDeviceInfo) == 56, "EnposeDeviceInfo size");
+ENPOSE_ASSERT_FIELD(EnposeDeviceInfo, ip, 0, 46);
+ENPOSE_ASSERT_FIELD(EnposeDeviceInfo, serial, 48, 4);
+ENPOSE_ASSERT_FIELD(EnposeDeviceInfo, compatible, 52, 1);
+
+ENPOSE_STATIC_ASSERT(sizeof(EnposeMarkerPose) == 136, "EnposeMarkerPose size");
+ENPOSE_ASSERT_FIELD(EnposeMarkerPose, timestamp, 0, 8);
+ENPOSE_ASSERT_FIELD(EnposeMarkerPose, marker_id, 8, 2);
+ENPOSE_ASSERT_FIELD(EnposeMarkerPose, x, 16, 8);
+ENPOSE_ASSERT_FIELD(EnposeMarkerPose, y, 24, 8);
+ENPOSE_ASSERT_FIELD(EnposeMarkerPose, z, 32, 8);
+ENPOSE_ASSERT_FIELD(EnposeMarkerPose, rotation, 40, 72);
+ENPOSE_ASSERT_FIELD(EnposeMarkerPose, position_rmse, 112, 8);
+ENPOSE_ASSERT_FIELD(EnposeMarkerPose, rotation_rmse, 120, 8);
+ENPOSE_ASSERT_FIELD(EnposeMarkerPose, sensors, 128, 1);
+ENPOSE_ASSERT_FIELD(EnposeMarkerPose, observed_emitters, 129, 1);
+
+#undef ENPOSE_ASSERT_FIELD
+
+#undef ENPOSE_STATIC_ASSERT
+
+#endif /* 64-bit target */
+/** @endcond */
